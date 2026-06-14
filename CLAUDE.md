@@ -1,4 +1,4 @@
-# CLAUDE.md — nextjs-service-template
+# CLAUDE.md — url-shortener
 
 > Claude Code가 이 레포에서 작업할 때 **반드시** 따라야 하는 규약입니다.
 > 이 파일은 Claude Code 세션 시작 시 자동으로 로드되며, 아래 `@import`를 통해 글로벌 규약과 프로젝트 규약을 함께 적용합니다.
@@ -19,7 +19,7 @@ test -f "$HOME/.claude/rules/thinking.md" && test -f "$HOME/.claude/rules/collab
 
 ## 📚 규약 구성 가이드북
 
-본 레포는 `nextjs-service-template` 이자 **규약 작성법 가이드북**. 새 Next.js 프로젝트 시작 시 이 CLAUDE.md 복사해서 사용.
+본 레포는 `url-shortener` 이자 **규약 작성법 가이드북**. 새 Next.js 프로젝트 시작 시 이 CLAUDE.md 복사해서 사용.
 
 ### 1️⃣ 3-tier 아키텍처
 
@@ -56,10 +56,10 @@ Tier 1·2 는 [`Scraps-Org/dotfiles-claude`](https://github.com/Scraps-Org/dotfi
 ### 4️⃣ 새 프로젝트에서 사용
 
 ```bash
-gh repo create my-app --template Scraps-Org/nextjs-service-template --private
+gh repo create my-app --template Scraps-Org/url-shortener --private
 gh repo clone my-app && cd my-app
 
-sed -i 's/nextjs-service-template/my-app/g' \
+sed -i 's/url-shortener/my-app/g' \
   package.json README.md docker-compose.yml CLAUDE.md \
   .claude/rules/project.md
 ```

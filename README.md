@@ -1,4 +1,4 @@
-# nextjs-service-template
+# url-shortener
 
 > 새 Next.js 프로젝트를 **5분 안에** 시작할 수 있도록 만든 범용 템플릿입니다.
 > Docker, pnpm, ESLint flat (next/typescript + next/core-web-vitals), Prettier, TypeScript strict, Vitest + RTL, Tailwind 4, Vercel native, pre-commit, GitHub + Linear, Claude Code.
@@ -152,11 +152,11 @@ pnpm add --save-dev <package>
 ## 🌱 이 템플릿을 내 프로젝트로
 
 ```bash
-gh repo create my-app --template Scraps-Org/nextjs-service-template --private
+gh repo create my-app --template Scraps-Org/url-shortener --private
 gh repo clone my-app && cd my-app
 
 # 1. 프로젝트 이름 갱신
-sed -i 's/nextjs-service-template/my-app/g' \
+sed -i 's/url-shortener/my-app/g' \
   package.json README.md docker-compose.yml CLAUDE.md \
   .claude/rules/project.md
 
