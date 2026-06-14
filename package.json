@@ -1,8 +1,8 @@
 {
-  "name": "nextjs-service-template",
+  "name": "url-shortener",
   "version": "0.1.0",
   "private": true,
-  "description": "범용 Next.js 15 (App Router) + TypeScript strict + Tailwind 4 + Vitest + RTL 템플릿",
+  "description": "URL 단축 웹앱 — Next.js 15 (App Router). scraps eval-loop node 제품.",
   "license": "MIT",
   "engines": {
     "node": ">=22"
