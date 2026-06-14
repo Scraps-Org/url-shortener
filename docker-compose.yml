@@ -5,8 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: nextjs-service-template:latest
-    container_name: nextjs-service-template
+    image: url-shortener:latest
+    container_name: url-shortener
     env_file:
       - .env
     ports:

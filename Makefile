@@ -50,10 +50,10 @@ clean:  ## 캐시 / 빌드 산출물 제거
 # ─────────────────────────────────────────────────────────────
 
 docker-build:  ## 도커 이미지 빌드
-	docker build -t nextjs-service-template:latest .
+	docker build -t url-shortener:latest .
 
 docker-run:  ## 도커 컨테이너 단발 실행 (포트 3000)
-	docker run --rm -it -p 3000:3000 nextjs-service-template:latest
+	docker run --rm -it -p 3000:3000 url-shortener:latest
 
 up:  ## docker compose 기동 (백그라운드)
 	docker compose up -d --build

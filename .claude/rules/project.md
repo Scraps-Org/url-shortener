@@ -1,4 +1,4 @@
-# 🚀 nextjs-service-template — 프로젝트 고유 규약
+# 🚀 url-shortener — 프로젝트 고유 규약
 
 > 사고 원칙: [`~/.claude/rules/thinking.md`](../../../.claude/rules/thinking.md)
 > 협업 규약: [`~/.claude/rules/collaboration.md`](../../../.claude/rules/collaboration.md)
