@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { isValidUrl } from '~/lib/code';
-import { shorten } from '~/lib/store';
+import { getStore } from '~/lib/store';
 
 export async function POST(request: Request) {
   let url: unknown;
@@ -15,6 +15,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid url' }, { status: 400 });
   }
 
-  const code = shorten(url);
+  const code = await getStore().shorten(url);
   return NextResponse.json({ code });
 }
