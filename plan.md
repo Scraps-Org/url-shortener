@@ -3,19 +3,19 @@ product: "url-shortener"
 owner: lean-startup-agent
 status: active
 updated: 2026-06-15
-goal_version: 84d7b2ac189b
+goal_version: 8acd3badd89c
 acceptance:
   - id: A-1
-    hint: "단축 저장이 모듈 전역 Map 이 아니라 storage 인터페이스 뒤 — in-memory 구현 + serverless 영속 구현(@vercel/kv|@upstash/redis|@vercel/postgres) 둘 다 존재 (인터페이스·구현 단위 테스트)"
+    hint: "단축 후 결과가 full URL(origin + '/' + code)로 표시 — 코드 단독 아님 (ShortenForm 렌더 테스트로 확인)"
     high_impact: true
   - id: A-2
-    hint: "pnpm test 가 in-memory 구현으로 라이브 DB 없이 통과 — 기존 shorten/redirect/stats/홈 + storage 추상화 테스트 전부 green"
+    hint: "결과 full URL 이 클릭 가능한 <a href> 링크 + '복사' 버튼(navigator.clipboard.writeText(fullUrl)) 제공 (테스트)"
     high_impact: true
   - id: A-3
-    hint: "next.config 의 output:standalone 이 process.env.VERCEL 조건부(Vercel=기본 타깃·그 외=standalone) + Dockerfile 유지 + 추가 영속 의존성이 pnpm-lock 반영돼 pnpm install --frozen-lockfile && pnpm build 통과"
-    high_impact: true
+    hint: "기존 동작·테스트(shorten/redirect/stats/store) 회귀 0 + 새 ShortenForm 단위 테스트 green"
+    high_impact: false
   - id: A-4
-    hint: "영속 구현 선택이 런타임 env 기반(env 있으면 영속·없으면 in-memory), 자격증명 하드코딩 없음, .env.example 에 키 명시"
+    hint: "pnpm run lint(eslint+prettier) + pnpm run typecheck(tsc) 무오류 — unused/any/포맷 잔재 0"
     high_impact: false
   - id: PKG-HEALTH
     hint: "clean env 에서 프로젝트 표준 빌드+테스트 명령이 우회 없이 통과하고 패키지가 정상 빌드·실행된다 (python: `make test` 또는 `uv run pytest` — PYTHONPATH 우회 금지; node: package.json `packageManager` 기준 PM 으로 lockfile clean install+build+test, 예 `pnpm i --frozen-lockfile && pnpm build && pnpm test` 또는 `npm ci && npm run build && npm test`). 패키지명·레이아웃이 제품과 정합한다 — pyproject `name`·`packages`(python) 또는 package.json `name`(node)이 제품명이고, 템플릿 잔재(`python-service-template`·`src/app` 패키지·`nextjs-service-template` 등)가 남지 않는다."
@@ -28,27 +28,28 @@ acceptance:
 
 ## 목표 (1줄)
 
-url-shortener 에 serverless 영속 저장 + Vercel 배포 호환을 추가하되 Docker self-host 도 유지 (publish 준비)
+url-shortener 단축 결과 UX 개선 — 코드만이 아니라 복사·클릭 가능한 full 단축 URL 표시
 
 ## 해야할 일
 
-기존 url-shortener(main) 에 영속성 + Vercel 호환 추가 — Docker 는 유지(개발/self-host).
-- src/lib/store.ts 모듈 전역 Map 을 storage 인터페이스 뒤로: (a) in-memory 구현(테스트·로컬) + (b) env 로 선택되는 serverless 영속 구현(@vercel/kv | @upstash/redis | @vercel/postgres 중 HTTP 기반·네이티브 의존성 없는 것 하나)
-- 런타임 선택: 영속 백엔드 env(REST URL·TOKEN) 존재 시 영속, 없으면 in-memory (자격증명 하드코딩 금지)
-- next.config: output:'standalone' 을 제거하지 말고 env 조건부로 — process.env.VERCEL 있으면(Vercel 빌드) 기본 타깃, 없으면 standalone 유지(Docker self-host). Dockerfile 그대로 둔다.
-- 추가 의존성을 package.json + pnpm-lock.yaml 반영 (frozen install 통과)
-- .env.example 에 영속 백엔드 env 키 + Vercel 배포 노트
-- 기존 동작·테스트(shorten/redirect/stats/홈) 회귀 0
-- (재검증2) SCR-522 evidence lockfile 재생성 후 첫 완주 확인
+기존 url-shortener(main) 의 ShortenForm 결과 표시 개선. 백엔드·저장소 변경 없음(UI 한정).
+- ShortenForm 이 결과를 'Short code: X' 가 아니라 full 단축 URL(window.location.origin + '/' + code)로 표시
+- 그 URL 을 클릭 가능한 <a> 링크 + '복사' 버튼(navigator.clipboard.writeText(fullUrl), 복사됨 피드백)
+- 기존 동작(POST /api/shorten, GET /[code] redirect, stats) 회귀 0
+- 표시·복사 로직 단위 테스트(vitest + RTL) 추가, 기존 ShortenForm 테스트 갱신
+- eslint + prettier + tsc clean (lint·typecheck 게이트 통과)
+- (재검증) SCR-524 tsbuildinfo fix 후 완주
+- (재검증) SCR-525 oracle fix 후 완주
+- (재검증 v2) baseline 청소 후 ShortenForm full-URL+copy 완주
 
 ## 수용기준 힌트 (성공의 모습)
 
 frontmatter `acceptance` 와 1:1. evaluator 가 게이트에서 판단형 기준(P1)으로 도출.
 
-- A-1: 단축 저장이 모듈 전역 Map 이 아니라 storage 인터페이스 뒤 — in-memory 구현 + serverless 영속 구현(@vercel/kv|@upstash/redis|@vercel/postgres) 둘 다 존재 (인터페이스·구현 단위 테스트)
-- A-2: pnpm test 가 in-memory 구현으로 라이브 DB 없이 통과 — 기존 shorten/redirect/stats/홈 + storage 추상화 테스트 전부 green
-- A-3: next.config 의 output:standalone 이 process.env.VERCEL 조건부(Vercel=기본 타깃·그 외=standalone) + Dockerfile 유지 + 추가 영속 의존성이 pnpm-lock 반영돼 pnpm install --frozen-lockfile && pnpm build 통과
-- A-4: 영속 구현 선택이 런타임 env 기반(env 있으면 영속·없으면 in-memory), 자격증명 하드코딩 없음, .env.example 에 키 명시
+- A-1: 단축 후 결과가 full URL(origin + '/' + code)로 표시 — 코드 단독 아님 (ShortenForm 렌더 테스트로 확인)
+- A-2: 결과 full URL 이 클릭 가능한 <a href> 링크 + '복사' 버튼(navigator.clipboard.writeText(fullUrl)) 제공 (테스트)
+- A-3: 기존 동작·테스트(shorten/redirect/stats/store) 회귀 0 + 새 ShortenForm 단위 테스트 green
+- A-4: pnpm run lint(eslint+prettier) + pnpm run typecheck(tsc) 무오류 — unused/any/포맷 잔재 0
 - PKG-HEALTH: clean env 에서 프로젝트 표준 빌드+테스트 명령이 우회 없이 통과하고 패키지가 정상 빌드·실행된다 (python: `make test` 또는 `uv run pytest` — PYTHONPATH 우회 금지; node: package.json `packageManager` 기준 PM 으로 lockfile clean install+build+test, 예 `pnpm i --frozen-lockfile && pnpm build && pnpm test` 또는 `npm ci && npm run build && npm test`). 패키지명·레이아웃이 제품과 정합한다 — pyproject `name`·`packages`(python) 또는 package.json `name`(node)이 제품명이고, 템플릿 잔재(`python-service-template`·`src/app` 패키지·`nextjs-service-template` 등)가 남지 않는다.
 
 ## 코딩 가이드 (planner)
