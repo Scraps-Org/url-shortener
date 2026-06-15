@@ -1,57 +1,45 @@
 {
   "artifact_refs": {
     "merged_task_shas": [
-      "913d2c2a38b993f19491e7786d3bf236530216e0",
-      "bd0a9bc0455715ca22c8717b156339d377fe7aed",
-      "9e82dc0094804e436acc3aaf1080aa408bdcc469",
-      "9c17b67df6f5bcfdc17d30fab009f749581be611",
-      "769889edbf024fc59c295266f0f942ce6851c8f2"
+      "7283ba86350b949f73d8d931050ddc8d83e5dfec",
+      "5ee3001fe96c7eed3224a8c99467b68b5ca4747f",
+      "7aade26e7bbf102beb03045fad4cd0663851336e"
     ]
   },
-  "base_ref": "b20b31c33a6be5883b11b8effc2ad1eedc193560",
-  "code_integration_sha": "0be2a8276af8f044a7ce729f22ce9f160e7ee862",
+  "base_ref": "51919caa47f5e129563c48e9b2bf0e43ea43771b",
+  "code_integration_sha": "6074a31ac743169bb2527408fda3c780cff7af69",
   "contract_version": "1.0",
-  "correlation_id": "eval-url-shortener-ab9d3f165807",
-  "dispatch_id": "eval-url-shortener-ab9d3f165807",
+  "correlation_id": "eval-url-shortener-84d7b2ac189b",
+  "dispatch_id": "eval-url-shortener-84d7b2ac189b",
   "engine_status": "engine_completed",
-  "generated_at": "2026-06-14T16:40:25.774879Z",
-  "goal_doc_sha": "ab9d3f165807",
-  "goal_id": "url-shortener-ab9d3f165807",
-  "integration_branch": "scraps/goal/url-shortener-ab9d3f165807",
+  "generated_at": "2026-06-15T06:20:07.694031Z",
+  "goal_doc_sha": "84d7b2ac189b",
+  "goal_id": "url-shortener-84d7b2ac189b",
+  "integration_branch": "scraps/goal/url-shortener-84d7b2ac189b",
   "known_gaps": [],
   "metrics_ref": {
     "path": "metrics.json",
-    "sha256": "9a48e8193f6c0ba820605292178596c627b005853ea37ebb8d1f084d56bd6991"
+    "sha256": "feec3034eaa09882533638776297ccef3cdf1acfc05e68e9c2a829182b85fca3"
   },
   "owner_verify_result": {
     "checks": [
       {
-        "name": "core-store",
+        "name": "storage-interface-memory",
         "status": "green",
         "tier": "extended"
       },
       {
-        "name": "api-shorten",
+        "name": "upstash-persistent-backend",
         "status": "green",
         "tier": "extended"
       },
       {
-        "name": "redirect-route",
-        "status": "green",
-        "tier": "extended"
-      },
-      {
-        "name": "api-stats",
-        "status": "green",
-        "tier": "extended"
-      },
-      {
-        "name": "home-form",
+        "name": "next-config-conditional-standalone",
         "status": "green",
         "tier": "extended"
       }
     ],
-    "merged_task_count": 5,
+    "merged_task_count": 3,
     "submit_gate_passed": true,
     "tier": "extended"
   },
@@ -78,11 +66,6 @@
       "observed": "not_engine_measurable"
     },
     {
-      "criterion": "A-5",
-      "how_measured": "none",
-      "observed": "not_engine_measurable"
-    },
-    {
       "criterion": "PKG-HEALTH",
       "how_measured": "none",
       "observed": "not_engine_measurable"
@@ -104,13 +87,23 @@
           "status": "passed"
         },
         {
-          "command": "pnpm exec vitest run tests/lib/store.test.ts",
+          "command": "pnpm exec vitest run tests/lib/storage.test.ts",
+          "exit_code": 0,
+          "status": "passed"
+        },
+        {
+          "command": "pnpm exec vitest run tests/lib/store.test.ts tests/api/shorten.test.ts tests/api/redirect.test.ts tests/api/stats.test.ts",
+          "exit_code": 0,
+          "status": "passed"
+        },
+        {
+          "command": "pnpm build",
           "exit_code": 0,
           "status": "passed"
         }
       ],
-      "log_ref": "event:task.verification_evidence:core-store",
-      "name": "core-store",
+      "log_ref": "event:task.verification_evidence:storage-interface-memory",
+      "name": "storage-interface-memory",
       "status": "green",
       "tier": "extended"
     },
@@ -122,13 +115,18 @@
           "status": "passed"
         },
         {
-          "command": "pnpm exec vitest run tests/api/shorten.test.ts",
+          "command": "pnpm exec vitest run tests/lib/upstash-storage.test.ts",
+          "exit_code": 0,
+          "status": "passed"
+        },
+        {
+          "command": "pnpm build",
           "exit_code": 0,
           "status": "passed"
         }
       ],
-      "log_ref": "event:task.verification_evidence:api-shorten",
-      "name": "api-shorten",
+      "log_ref": "event:task.verification_evidence:upstash-persistent-backend",
+      "name": "upstash-persistent-backend",
       "status": "green",
       "tier": "extended"
     },
@@ -140,49 +138,18 @@
           "status": "passed"
         },
         {
-          "command": "pnpm exec vitest run tests/api/redirect.test.ts",
-          "exit_code": 0,
-          "status": "passed"
-        }
-      ],
-      "log_ref": "event:task.verification_evidence:redirect-route",
-      "name": "redirect-route",
-      "status": "green",
-      "tier": "extended"
-    },
-    {
-      "checks": [
-        {
-          "command": "pnpm install --frozen-lockfile",
+          "command": "pnpm exec vitest run tests/lib/next-config.test.ts",
           "exit_code": 0,
           "status": "passed"
         },
         {
-          "command": "pnpm exec vitest run tests/api/stats.test.ts",
+          "command": "pnpm build",
           "exit_code": 0,
           "status": "passed"
         }
       ],
-      "log_ref": "event:task.verification_evidence:api-stats",
-      "name": "api-stats",
-      "status": "green",
-      "tier": "extended"
-    },
-    {
-      "checks": [
-        {
-          "command": "pnpm install --frozen-lockfile",
-          "exit_code": 0,
-          "status": "passed"
-        },
-        {
-          "command": "pnpm exec vitest run tests/components/ShortenForm.test.tsx",
-          "exit_code": 0,
-          "status": "passed"
-        }
-      ],
-      "log_ref": "event:task.verification_evidence:home-form",
-      "name": "home-form",
+      "log_ref": "event:task.verification_evidence:next-config-conditional-standalone",
+      "name": "next-config-conditional-standalone",
       "status": "green",
       "tier": "extended"
     }
