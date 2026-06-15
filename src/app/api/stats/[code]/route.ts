@@ -1,10 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getClicks } from '~/lib/store';
 
-export async function GET(
-  request: Request,
-  ctx: { params: Promise<{ code: string }> },
-) {
+export async function GET(request: Request, ctx: { params: Promise<{ code: string }> }) {
   const { code } = await ctx.params;
   const clicks = await getClicks(code);
 
