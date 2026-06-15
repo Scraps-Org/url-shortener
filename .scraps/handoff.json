@@ -1,0 +1,190 @@
+{
+  "artifact_refs": {
+    "merged_task_shas": [
+      "913d2c2a38b993f19491e7786d3bf236530216e0",
+      "bd0a9bc0455715ca22c8717b156339d377fe7aed",
+      "9e82dc0094804e436acc3aaf1080aa408bdcc469",
+      "9c17b67df6f5bcfdc17d30fab009f749581be611",
+      "769889edbf024fc59c295266f0f942ce6851c8f2"
+    ]
+  },
+  "base_ref": "b20b31c33a6be5883b11b8effc2ad1eedc193560",
+  "code_integration_sha": "0be2a8276af8f044a7ce729f22ce9f160e7ee862",
+  "contract_version": "1.0",
+  "correlation_id": "eval-url-shortener-ab9d3f165807",
+  "dispatch_id": "eval-url-shortener-ab9d3f165807",
+  "engine_status": "engine_completed",
+  "generated_at": "2026-06-14T16:40:25.774879Z",
+  "goal_doc_sha": "ab9d3f165807",
+  "goal_id": "url-shortener-ab9d3f165807",
+  "integration_branch": "scraps/goal/url-shortener-ab9d3f165807",
+  "known_gaps": [],
+  "metrics_ref": {
+    "path": "metrics.json",
+    "sha256": "9a48e8193f6c0ba820605292178596c627b005853ea37ebb8d1f084d56bd6991"
+  },
+  "owner_verify_result": {
+    "checks": [
+      {
+        "name": "core-store",
+        "status": "green",
+        "tier": "extended"
+      },
+      {
+        "name": "api-shorten",
+        "status": "green",
+        "tier": "extended"
+      },
+      {
+        "name": "redirect-route",
+        "status": "green",
+        "tier": "extended"
+      },
+      {
+        "name": "api-stats",
+        "status": "green",
+        "tier": "extended"
+      },
+      {
+        "name": "home-form",
+        "status": "green",
+        "tier": "extended"
+      }
+    ],
+    "merged_task_count": 5,
+    "submit_gate_passed": true,
+    "tier": "extended"
+  },
+  "phase_gate_record": {},
+  "recorded_acceptance_measurement": [
+    {
+      "criterion": "A-1",
+      "how_measured": "none",
+      "observed": "not_engine_measurable"
+    },
+    {
+      "criterion": "A-2",
+      "how_measured": "none",
+      "observed": "not_engine_measurable"
+    },
+    {
+      "criterion": "A-3",
+      "how_measured": "none",
+      "observed": "not_engine_measurable"
+    },
+    {
+      "criterion": "A-4",
+      "how_measured": "none",
+      "observed": "not_engine_measurable"
+    },
+    {
+      "criterion": "A-5",
+      "how_measured": "none",
+      "observed": "not_engine_measurable"
+    },
+    {
+      "criterion": "PKG-HEALTH",
+      "how_measured": "none",
+      "observed": "not_engine_measurable"
+    }
+  ],
+  "risk_permission_audit": {
+    "dispatch_blocks": [],
+    "guard_blocks": [],
+    "material_risk_holds": [],
+    "owner_required": false
+  },
+  "target_repo": "Scraps-Org/url-shortener",
+  "verification_evidence": [
+    {
+      "checks": [
+        {
+          "command": "pnpm install --frozen-lockfile",
+          "exit_code": 0,
+          "status": "passed"
+        },
+        {
+          "command": "pnpm exec vitest run tests/lib/store.test.ts",
+          "exit_code": 0,
+          "status": "passed"
+        }
+      ],
+      "log_ref": "event:task.verification_evidence:core-store",
+      "name": "core-store",
+      "status": "green",
+      "tier": "extended"
+    },
+    {
+      "checks": [
+        {
+          "command": "pnpm install --frozen-lockfile",
+          "exit_code": 0,
+          "status": "passed"
+        },
+        {
+          "command": "pnpm exec vitest run tests/api/shorten.test.ts",
+          "exit_code": 0,
+          "status": "passed"
+        }
+      ],
+      "log_ref": "event:task.verification_evidence:api-shorten",
+      "name": "api-shorten",
+      "status": "green",
+      "tier": "extended"
+    },
+    {
+      "checks": [
+        {
+          "command": "pnpm install --frozen-lockfile",
+          "exit_code": 0,
+          "status": "passed"
+        },
+        {
+          "command": "pnpm exec vitest run tests/api/redirect.test.ts",
+          "exit_code": 0,
+          "status": "passed"
+        }
+      ],
+      "log_ref": "event:task.verification_evidence:redirect-route",
+      "name": "redirect-route",
+      "status": "green",
+      "tier": "extended"
+    },
+    {
+      "checks": [
+        {
+          "command": "pnpm install --frozen-lockfile",
+          "exit_code": 0,
+          "status": "passed"
+        },
+        {
+          "command": "pnpm exec vitest run tests/api/stats.test.ts",
+          "exit_code": 0,
+          "status": "passed"
+        }
+      ],
+      "log_ref": "event:task.verification_evidence:api-stats",
+      "name": "api-stats",
+      "status": "green",
+      "tier": "extended"
+    },
+    {
+      "checks": [
+        {
+          "command": "pnpm install --frozen-lockfile",
+          "exit_code": 0,
+          "status": "passed"
+        },
+        {
+          "command": "pnpm exec vitest run tests/components/ShortenForm.test.tsx",
+          "exit_code": 0,
+          "status": "passed"
+        }
+      ],
+      "log_ref": "event:task.verification_evidence:home-form",
+      "name": "home-form",
+      "status": "green",
+      "tier": "extended"
+    }
+  ]
+}
