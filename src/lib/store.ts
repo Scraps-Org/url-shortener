@@ -1,42 +1,29 @@
 import { generateCode, isValidUrl } from './code';
+import { getStorage } from './storage';
 
-type StoreEntry = {
-  url: string;
-  clicks: number;
-};
-
-const store = new Map<string, StoreEntry>();
-
-export function shorten(url: string): string {
+export async function shorten(url: string): Promise<string> {
   if (!isValidUrl(url)) {
     throw new Error('Invalid URL');
   }
-  
+
+  const storage = getStorage();
   let code: string;
   do {
     code = generateCode();
-  } while (store.has(code));
-  
-  store.set(code, { url, clicks: 0 });
+  } while (await storage.has(code));
+
+  await storage.save(code, url);
   return code;
 }
 
-export function lookup(code: string): string | undefined {
-  const entry = store.get(code);
-  return entry ? entry.url : undefined;
+export async function lookup(code: string): Promise<string | undefined> {
+  return getStorage().get(code);
 }
 
-export function recordClick(code: string): number | undefined {
-  const entry = store.get(code);
-  if (!entry) {
-    return undefined;
-  }
-  
-  entry.clicks++;
-  return entry.clicks;
+export async function recordClick(code: string): Promise<number | undefined> {
+  return getStorage().incrementClicks(code);
 }
 
-export function getClicks(code: string): number | undefined {
-  const entry = store.get(code);
-  return entry ? entry.clicks : undefined;
+export async function getClicks(code: string): Promise<number | undefined> {
+  return getStorage().getClicks(code);
 }

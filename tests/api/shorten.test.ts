@@ -17,7 +17,7 @@ describe('POST /api/shorten', () => {
     const json = await res.json();
     expect(typeof json.code).toBe('string');
     expect(json.code).toHaveLength(6);
-    expect(lookup(json.code)).toBe('https://example.com');
+    expect(await lookup(json.code)).toBe('https://example.com');
   });
 
   it('returns 400 when url is missing', async () => {
