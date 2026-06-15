@@ -6,12 +6,12 @@ export async function GET(
   ctx: { params: Promise<{ code: string }> },
 ): Promise<NextResponse> {
   const { code } = await ctx.params;
-  const url = lookup(code);
+  const url = await lookup(code);
 
   if (url === undefined) {
     return new NextResponse(null, { status: 404 });
   }
 
-  recordClick(code);
+  await recordClick(code);
   return NextResponse.redirect(url, 302);
 }

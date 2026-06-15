@@ -15,6 +15,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid url' }, { status: 400 });
   }
 
-  const code = shorten(url);
+  const code = await shorten(url);
   return NextResponse.json({ code });
 }

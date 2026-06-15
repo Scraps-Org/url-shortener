@@ -14,9 +14,9 @@ describe('GET /api/stats/[code]', () => {
   });
 
   it('returns the click count for a known code', async () => {
-    const code = shorten('https://example.com');
-    recordClick(code);
-    recordClick(code);
+    const code = await shorten('https://example.com');
+    await recordClick(code);
+    await recordClick(code);
 
     const res = await GET(new Request(`http://localhost/api/stats/${code}`), makeCtx(code));
     expect(res.status).toBe(200);
@@ -24,7 +24,7 @@ describe('GET /api/stats/[code]', () => {
   });
 
   it('returns 0 clicks for a freshly shortened code', async () => {
-    const code = shorten('https://example.org');
+    const code = await shorten('https://example.org');
 
     const res = await GET(new Request(`http://localhost/api/stats/${code}`), makeCtx(code));
     expect(res.status).toBe(200);

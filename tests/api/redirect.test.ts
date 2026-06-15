@@ -9,8 +9,8 @@ function makeCtx(code: string) {
 describe('GET /[code]', () => {
   let code: string;
 
-  beforeEach(() => {
-    code = shorten('https://example.com/');
+  beforeEach(async () => {
+    code = await shorten('https://example.com/');
   });
 
   it('redirects with 302 to the stored url', async () => {
@@ -20,9 +20,9 @@ describe('GET /[code]', () => {
   });
 
   it('records a click on redirect', async () => {
-    const before = getClicks(code);
+    const before = await getClicks(code);
     await GET(new Request('http://localhost/' + code), makeCtx(code));
-    expect(getClicks(code)).toBe((before ?? 0) + 1);
+    expect(await getClicks(code)).toBe((before ?? 0) + 1);
   });
 
   it('returns 404 for unknown code', async () => {
