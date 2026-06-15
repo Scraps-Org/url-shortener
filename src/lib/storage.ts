@@ -1,3 +1,5 @@
+import { UpstashStorage } from './upstash-storage';
+
 export interface Storage {
   save(code: string, url: string): Promise<void>;
   get(code: string): Promise<string | undefined>;
@@ -39,7 +41,13 @@ let instance: Storage | undefined;
 
 export function getStorage(): Storage {
   if (!instance) {
-    instance = new MemoryStorage();
+    const url = process.env.UPSTASH_REDIS_REST_URL;
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+    if (url && token) {
+      instance = new UpstashStorage({ url, token });
+    } else {
+      instance = new MemoryStorage();
+    }
   }
   return instance;
 }
