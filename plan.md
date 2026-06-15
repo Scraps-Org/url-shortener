@@ -2,23 +2,20 @@
 product: "url-shortener"
 owner: lean-startup-agent
 status: active
-updated: 2026-06-14
-goal_version: ab9d3f165807
+updated: 2026-06-15
+goal_version: 84d7b2ac189b
 acceptance:
   - id: A-1
-    hint: "POST /api/shorten - 유효 URL 에 6자 코드 반환, 무효 URL 은 400 (vitest 핸들러)"
+    hint: "단축 저장이 모듈 전역 Map 이 아니라 storage 인터페이스 뒤 — in-memory 구현 + serverless 영속 구현(@vercel/kv|@upstash/redis|@vercel/postgres) 둘 다 존재 (인터페이스·구현 단위 테스트)"
     high_impact: true
   - id: A-2
-    hint: "GET /[code] - 원본으로 302 redirect, 미존재 코드는 404"
+    hint: "pnpm test 가 in-memory 구현으로 라이브 DB 없이 통과 — 기존 shorten/redirect/stats/홈 + storage 추상화 테스트 전부 green"
     high_impact: true
   - id: A-3
-    hint: "단축 코드 충돌 없이 유일 (생성 로직 단위 테스트)"
-    high_impact: false
+    hint: "next.config 의 output:standalone 이 process.env.VERCEL 조건부(Vercel=기본 타깃·그 외=standalone) + Dockerfile 유지 + 추가 영속 의존성이 pnpm-lock 반영돼 pnpm install --frozen-lockfile && pnpm build 통과"
+    high_impact: true
   - id: A-4
-    hint: "GET /api/stats/[code] - 클릭 수 반환, redirect 시 증가 (카운트 로직 테스트)"
-    high_impact: false
-  - id: A-5
-    hint: "홈(/) 이 단축 입력 폼 렌더 (컴포넌트/렌더 테스트)"
+    hint: "영속 구현 선택이 런타임 env 기반(env 있으면 영속·없으면 in-memory), 자격증명 하드코딩 없음, .env.example 에 키 명시"
     high_impact: false
   - id: PKG-HEALTH
     hint: "clean env 에서 프로젝트 표준 빌드+테스트 명령이 우회 없이 통과하고 패키지가 정상 빌드·실행된다 (python: `make test` 또는 `uv run pytest` — PYTHONPATH 우회 금지; node: package.json `packageManager` 기준 PM 으로 lockfile clean install+build+test, 예 `pnpm i --frozen-lockfile && pnpm build && pnpm test` 또는 `npm ci && npm run build && npm test`). 패키지명·레이아웃이 제품과 정합한다 — pyproject `name`·`packages`(python) 또는 package.json `name`(node)이 제품명이고, 템플릿 잔재(`python-service-template`·`src/app` 패키지·`nextjs-service-template` 등)가 남지 않는다."
@@ -31,27 +28,27 @@ acceptance:
 
 ## 목표 (1줄)
 
-URL을 짧은 코드로 단축하고 코드로 원본에 리다이렉트하며 클릭 수를 집계하는 웹앱
+url-shortener 에 serverless 영속 저장 + Vercel 배포 호환을 추가하되 Docker self-host 도 유지 (publish 준비)
 
 ## 해야할 일
 
-Next.js(App Router, TypeScript) + in-memory store(데모 — DB 불요).
-- 코드 생성: 6자 base62 랜덤 + 충돌 회피
-- API: POST /api/shorten {url}->{code} (URL 검증), GET /api/stats/[code]->{clicks}
-- 라우트: GET /[code] -> 302 redirect + 클릭 카운트++, 미존재 -> 404
-- 홈(/): 단축 폼 + 결과 표시
-- vitest 단위(코드생성·검증·카운트) + 라우트 핸들러 테스트
-- (재검증8) PKG-HEALTH 엔진 게이트 후 첫 완주 확인
+기존 url-shortener(main) 에 영속성 + Vercel 호환 추가 — Docker 는 유지(개발/self-host).
+- src/lib/store.ts 모듈 전역 Map 을 storage 인터페이스 뒤로: (a) in-memory 구현(테스트·로컬) + (b) env 로 선택되는 serverless 영속 구현(@vercel/kv | @upstash/redis | @vercel/postgres 중 HTTP 기반·네이티브 의존성 없는 것 하나)
+- 런타임 선택: 영속 백엔드 env(REST URL·TOKEN) 존재 시 영속, 없으면 in-memory (자격증명 하드코딩 금지)
+- next.config: output:'standalone' 을 제거하지 말고 env 조건부로 — process.env.VERCEL 있으면(Vercel 빌드) 기본 타깃, 없으면 standalone 유지(Docker self-host). Dockerfile 그대로 둔다.
+- 추가 의존성을 package.json + pnpm-lock.yaml 반영 (frozen install 통과)
+- .env.example 에 영속 백엔드 env 키 + Vercel 배포 노트
+- 기존 동작·테스트(shorten/redirect/stats/홈) 회귀 0
+- (재검증2) SCR-522 evidence lockfile 재생성 후 첫 완주 확인
 
 ## 수용기준 힌트 (성공의 모습)
 
 frontmatter `acceptance` 와 1:1. evaluator 가 게이트에서 판단형 기준(P1)으로 도출.
 
-- A-1: POST /api/shorten - 유효 URL 에 6자 코드 반환, 무효 URL 은 400 (vitest 핸들러)
-- A-2: GET /[code] - 원본으로 302 redirect, 미존재 코드는 404
-- A-3: 단축 코드 충돌 없이 유일 (생성 로직 단위 테스트)
-- A-4: GET /api/stats/[code] - 클릭 수 반환, redirect 시 증가 (카운트 로직 테스트)
-- A-5: 홈(/) 이 단축 입력 폼 렌더 (컴포넌트/렌더 테스트)
+- A-1: 단축 저장이 모듈 전역 Map 이 아니라 storage 인터페이스 뒤 — in-memory 구현 + serverless 영속 구현(@vercel/kv|@upstash/redis|@vercel/postgres) 둘 다 존재 (인터페이스·구현 단위 테스트)
+- A-2: pnpm test 가 in-memory 구현으로 라이브 DB 없이 통과 — 기존 shorten/redirect/stats/홈 + storage 추상화 테스트 전부 green
+- A-3: next.config 의 output:standalone 이 process.env.VERCEL 조건부(Vercel=기본 타깃·그 외=standalone) + Dockerfile 유지 + 추가 영속 의존성이 pnpm-lock 반영돼 pnpm install --frozen-lockfile && pnpm build 통과
+- A-4: 영속 구현 선택이 런타임 env 기반(env 있으면 영속·없으면 in-memory), 자격증명 하드코딩 없음, .env.example 에 키 명시
 - PKG-HEALTH: clean env 에서 프로젝트 표준 빌드+테스트 명령이 우회 없이 통과하고 패키지가 정상 빌드·실행된다 (python: `make test` 또는 `uv run pytest` — PYTHONPATH 우회 금지; node: package.json `packageManager` 기준 PM 으로 lockfile clean install+build+test, 예 `pnpm i --frozen-lockfile && pnpm build && pnpm test` 또는 `npm ci && npm run build && npm test`). 패키지명·레이아웃이 제품과 정합한다 — pyproject `name`·`packages`(python) 또는 package.json `name`(node)이 제품명이고, 템플릿 잔재(`python-service-template`·`src/app` 패키지·`nextjs-service-template` 등)가 남지 않는다.
 
 ## 코딩 가이드 (planner)

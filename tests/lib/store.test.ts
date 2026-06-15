@@ -14,34 +14,34 @@ beforeEach(() => {
 });
 
 describe('store', () => {
-  it('should shorten a valid URL and return a 6-character code', () => {
-    const code = shorten('https://example.com');
+  it('should shorten a valid URL and return a 6-character code', async () => {
+    const code = await shorten('https://example.com');
     expect(code).toHaveLength(6);
     expect(typeof code).toBe('string');
   });
 
-  it('should return undefined for unknown codes', () => {
-    expect(lookup('unknown')).toBeUndefined();
-    expect(recordClick('unknown')).toBeUndefined();
-    expect(getClicks('unknown')).toBeUndefined();
+  it('should return undefined for unknown codes', async () => {
+    expect(await lookup('unknown')).toBeUndefined();
+    expect(await recordClick('unknown')).toBeUndefined();
+    expect(await getClicks('unknown')).toBeUndefined();
   });
 
-  it('should record clicks correctly', () => {
-    const code = shorten('https://example.com');
-    expect(recordClick(code)).toBe(1);
-    expect(recordClick(code)).toBe(2);
-    expect(getClicks(code)).toBe(2);
+  it('should record clicks correctly', async () => {
+    const code = await shorten('https://example.com');
+    expect(await recordClick(code)).toBe(1);
+    expect(await recordClick(code)).toBe(2);
+    expect(await getClicks(code)).toBe(2);
   });
 
-  it('should handle multiple URLs correctly', () => {
-    const code1 = shorten('https://example.com');
-    const code2 = shorten('https://google.com');
+  it('should handle multiple URLs correctly', async () => {
+    const code1 = await shorten('https://example.com');
+    const code2 = await shorten('https://google.com');
     
     expect(code1).toHaveLength(6);
     expect(code2).toHaveLength(6);
     expect(code1).not.toBe(code2);
     
-    expect(lookup(code1)).toBe('https://example.com');
-    expect(lookup(code2)).toBe('https://google.com');
+    expect(await lookup(code1)).toBe('https://example.com');
+    expect(await lookup(code2)).toBe('https://google.com');
   });
 });
