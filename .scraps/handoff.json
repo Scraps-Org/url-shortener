@@ -1,45 +1,33 @@
 {
   "artifact_refs": {
     "merged_task_shas": [
-      "7283ba86350b949f73d8d931050ddc8d83e5dfec",
-      "5ee3001fe96c7eed3224a8c99467b68b5ca4747f",
-      "7aade26e7bbf102beb03045fad4cd0663851336e"
+      "2de7ed5f997840d25f08d97bde1ba652b201e29e"
     ]
   },
-  "base_ref": "51919caa47f5e129563c48e9b2bf0e43ea43771b",
-  "code_integration_sha": "6074a31ac743169bb2527408fda3c780cff7af69",
+  "base_ref": "cbf8e25b2216eedc8688ff7b0661451952ef070f",
+  "code_integration_sha": "75a6acbedb46d0d4fc83767dbcd1d548ba1ff1b8",
   "contract_version": "1.0",
-  "correlation_id": "eval-url-shortener-84d7b2ac189b",
-  "dispatch_id": "eval-url-shortener-84d7b2ac189b",
+  "correlation_id": "eval-url-shortener-a4f28b475792",
+  "dispatch_id": "eval-url-shortener-a4f28b475792",
   "engine_status": "engine_completed",
-  "generated_at": "2026-06-15T06:20:07.694031Z",
-  "goal_doc_sha": "84d7b2ac189b",
-  "goal_id": "url-shortener-84d7b2ac189b",
-  "integration_branch": "scraps/goal/url-shortener-84d7b2ac189b",
+  "generated_at": "2026-06-16T02:21:27.083743Z",
+  "goal_doc_sha": "a4f28b475792",
+  "goal_id": "url-shortener-a4f28b475792",
+  "integration_branch": "scraps/goal/url-shortener-a4f28b475792",
   "known_gaps": [],
   "metrics_ref": {
     "path": "metrics.json",
-    "sha256": "feec3034eaa09882533638776297ccef3cdf1acfc05e68e9c2a829182b85fca3"
+    "sha256": "f7d2c21cde59599a822e12965e147a5ff0eb9f90c34ad2f54e24c70966b4eb99"
   },
   "owner_verify_result": {
     "checks": [
       {
-        "name": "storage-interface-memory",
-        "status": "green",
-        "tier": "extended"
-      },
-      {
-        "name": "upstash-persistent-backend",
-        "status": "green",
-        "tier": "extended"
-      },
-      {
-        "name": "next-config-conditional-standalone",
+        "name": "shortenform-full-url-copy",
         "status": "green",
         "tier": "extended"
       }
     ],
-    "merged_task_count": 3,
+    "merged_task_count": 1,
     "submit_gate_passed": true,
     "tier": "extended"
   },
@@ -87,35 +75,22 @@
           "status": "passed"
         },
         {
-          "command": "pnpm exec vitest run tests/lib/storage.test.ts",
+          "command": "pnpm exec vitest run tests/components/ShortenForm.test.tsx",
           "exit_code": 0,
           "status": "passed"
         },
         {
-          "command": "pnpm exec vitest run tests/lib/store.test.ts tests/api/shorten.test.ts tests/api/redirect.test.ts tests/api/stats.test.ts",
+          "command": "pnpm exec vitest run",
           "exit_code": 0,
           "status": "passed"
         },
         {
-          "command": "pnpm build",
-          "exit_code": 0,
-          "status": "passed"
-        }
-      ],
-      "log_ref": "event:task.verification_evidence:storage-interface-memory",
-      "name": "storage-interface-memory",
-      "status": "green",
-      "tier": "extended"
-    },
-    {
-      "checks": [
-        {
-          "command": "pnpm install --frozen-lockfile",
+          "command": "pnpm run lint",
           "exit_code": 0,
           "status": "passed"
         },
         {
-          "command": "pnpm exec vitest run tests/lib/upstash-storage.test.ts",
+          "command": "pnpm run typecheck",
           "exit_code": 0,
           "status": "passed"
         },
@@ -125,31 +100,8 @@
           "status": "passed"
         }
       ],
-      "log_ref": "event:task.verification_evidence:upstash-persistent-backend",
-      "name": "upstash-persistent-backend",
-      "status": "green",
-      "tier": "extended"
-    },
-    {
-      "checks": [
-        {
-          "command": "pnpm install --frozen-lockfile",
-          "exit_code": 0,
-          "status": "passed"
-        },
-        {
-          "command": "pnpm exec vitest run tests/lib/next-config.test.ts",
-          "exit_code": 0,
-          "status": "passed"
-        },
-        {
-          "command": "pnpm build",
-          "exit_code": 0,
-          "status": "passed"
-        }
-      ],
-      "log_ref": "event:task.verification_evidence:next-config-conditional-standalone",
-      "name": "next-config-conditional-standalone",
+      "log_ref": "event:task.verification_evidence:shortenform-full-url-copy",
+      "name": "shortenform-full-url-copy",
       "status": "green",
       "tier": "extended"
     }
