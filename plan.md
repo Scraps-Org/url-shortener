@@ -3,7 +3,7 @@ product: "url-shortener"
 owner: lean-startup-agent
 status: active
 updated: 2026-06-17
-goal_version: 9ca8b6ed5c89
+goal_version: 48b98eb3bf06
 gtm_route: toy
 engine: N/A
 maturity_stage: wizard-sandbox
@@ -37,29 +37,57 @@ User can see the links they created and how many times each was clicked.
 
 ## 해야할 일
 
-**Part 1 — 공유 계약: `Link` 데이터 모델 및 `LinkStore` 인터페이스** (`src/app/models.py`)
+**공유 계약 (모든 파트가 이 계약을 기준으로 구현)**
 
-`Link` 데이터클래스(`short_code: str`, `original_url: str`, `owner_id: str`, `click_count: int`, `created_at: datetime`)를 정의한다. 동일 파일에 `LinkStore` 프로토콜(구상 클래스가 구현할 계약)을 두고 메서드 서명을 명시한다: `add(link: Link) -> None`, `get(short_code: str) -> Link | None`, `list_by_owner(owner_id: str) -> list[Link]`, `increment_clicks(short_code: str) -> None`. 이후 모든 파트는 이 계약에만 의존한다. (A-1)
+`Link` 데이터클래스: `short_code: str`, `original_url: str`, `click_count: int`, `created_at: str` (ISO 8601). `db.py`가 외부로 노출해야 할 함수 시그니처:
+- `init_db(db_path: str) -> None`
+- `create_link(db_path: str, short_code: str, original_url: str) -> Link`
+- `get_link(db_path: str, short_code: str) -> Link | None`
+- `increment_click(db_path: str, short_code: str) -> None`
+- `list_links(db_path: str) -> list[Link]`
 
-**Part 2 — 스토리지 구현** (`src/app/storage.py`)
+핸들러 응답 타입: `Response = tuple[int, dict[str, str], str]` (상태코드, 헤더, 바디).
 
-`InMemoryLinkStore`가 `LinkStore`를 구현한다. 내부 상태는 `dict[str, Link]`(short_code → Link)이며, `increment_clicks`는 `threading.Lock`으로 카운터를 원자적으로 증가시킨다. `list_by_owner`는 `owner_id`로 필터링 후 `created_at` 기준 정렬 리스트를 반환한다. (A-1)
+---
 
-**Part 3 — 리디렉트 핸들러** (`src/app/redirect.py`)
+**파트 1 — `src/app/models.py`** [A-1]
 
-`http.server.BaseHTTPRequestHandler`를 상속한 `RedirectHandler`를 정의한다. `do_GET`에서 경로의 short_code를 추출하고 `store.increment_clicks(short_code)`를 호출한 뒤 `302` 응답으로 `original_url`로 리디렉트한다. short_code가 없으면 `404`를 반환한다. 스토어 인스턴스는 핸들러 클래스 속성으로 주입한다. (A-1 — 클릭 수 증가)
+위 공유 계약의 `Link` 데이터클래스를 정의한다. `dataclasses` 외 어떤 모듈도 임포트하지 않는다. 모든 다른 모듈이 이 파일에서 `Link`를 가져온다.
 
-**Part 4 — 대시보드 뷰** (`src/app/dashboard.py`)
+---
 
-`DashboardHandler`가 `GET /dashboard`를 처리한다. `store.list_by_owner(owner_id)`를 호출하여 결과를 HTML `<table>`로 렌더링한다(컬럼: short_code, original_url, click_count, created_at). HTML 생성은 표준 라이브러리 문자열 포매팅만 사용하며 외부 템플릿 엔진을 쓰지 않는다. (A-1 — 리스트/테이블 뷰)
+**파트 2 — `src/app/db.py`** [A-1]
 
-**Part 5 — 애플리케이션 진입점** (`src/app/main.py`)
+표준 라이브러리 `sqlite3`만 사용하는 영속성 계층. `init_db`는 `links` 테이블(`short_code TEXT PRIMARY KEY`, `original_url TEXT NOT NULL`, `click_count INTEGER NOT NULL DEFAULT 0`, `created_at TEXT NOT NULL`)을 생성한다. 공유 계약의 다섯 함수를 모두 구현한다. `increment_click`은 `UPDATE links SET click_count = click_count + 1 WHERE short_code = ?` 단일 쿼리로 처리한다. `list_links`는 `created_at DESC` 정렬로 반환한다. 임포트: `sqlite3`, `dataclasses`, `models`.
 
-`InMemoryLinkStore` 인스턴스를 생성하고 `RedirectHandler`·`DashboardHandler`의 클래스 속성에 주입한다. 두 핸들러를 하나의 `http.server.HTTPServer`에서 경로 prefix로 분기하는 라우팅 디스패처(`do_GET` 내 분기)를 구성한다. `if __name__ == "__main__"`에서 서버를 기동한다.
+---
 
-**Part 6 — 표준 라이브러리 제약 정적 검사** (`src/app/` 전체)
+**파트 3 — `src/app/handlers.py`** [A-1]
 
-`ast` 모듈로 `src/app/` 내 모든 `.py` 파일을 파싱하여 `import` 및 `from … import` 노드를 수집한다. 각 최상위 모듈 이름을 `sys.stdlib_module_names`(Python 3.10+) 또는 수동 화이트리스트와 대조해 서드파티 모듈이 없음을 단언한다. 이 검사는 정적 분석(동작 테스트 아님)으로 수행하며 코딩 플래너가 테스트 파일로 구현한다. (A-1 전체의 구조 제약 근거)
+순수 라우팅 함수 모음. HTTP 서버 구현과 분리된다.
+
+- `handle_redirect(db_path, short_code) -> Response` — `get_link`로 조회; 존재하면 `increment_click` 후 302 + `Location` 헤더 반환, 없으면 404.
+- `handle_list(db_path) -> Response` — `list_links` 호출 후 Short Code · Original URL · Clicks · Created At 4열 HTML 테이블 문자열을 200으로 반환. 이 뷰가 A-1의 "list/table view"를 충족한다.
+- `handle_create(db_path, body: str) -> Response` — `urllib.parse.parse_qs`로 폼 바디(`short_code`, `url`)를 파싱해 `create_link` 호출 후 `/links`로 303 리다이렉트. 링크를 목록에 올리기 위한 최소 생성 경로.
+
+임포트: `urllib.parse`, `models`, `db`.
+
+---
+
+**파트 4 — `src/app/server.py`** [A-1]
+
+진입점. `http.server.BaseHTTPRequestHandler`를 서브클래싱해 `do_GET` / `do_POST`를 구현한다. 경로 파싱 규칙:
+- `GET /links` → `handle_list`
+- `GET /<code>` (그 외) → `handle_redirect`
+- `POST /links` → `handle_create`
+
+`PORT` 환경 변수(기본값 `8000`)로 `HTTPServer`를 바인딩하고 `init_db` 호출 뒤 `serve_forever()`로 실행. `DB_PATH` 환경 변수로 SQLite 파일 위치를 제어한다. 임포트: `http.server`, `os`, `urllib.parse`, `handlers`, `db`.
+
+---
+
+**파트 5 — 제약 검증: 표준 라이브러리 전용 임포트 경계** [구조적 제약]
+
+`src/app/check_imports.py`를 작성한다. `ast`로 `src/app/` 내 모든 `.py` 파일(단, 자기 자신 제외)을 파싱해 모든 최상위 `import` 및 `from … import` 노드에서 모듈명을 추출한다. 추출된 모듈명이 `sys.stdlib_module_names`(Python 3.10+) 또는 내부 사이드 모듈(`models`, `db`, `handlers`, `server`) 중 하나가 아니면 위반 목록을 출력하고 `sys.exit(1)`로 종료한다. 코딩 플래너가 이 스크립트를 실행하는 테스트 오라클을 작성한다. 동작 테스트 통과만으로는 이 제약을 충족하지 못한다.
 
 ## 수용기준 힌트 (성공의 모습)
 
