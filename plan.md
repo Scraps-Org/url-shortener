@@ -3,7 +3,7 @@ product: "url-shortener"
 owner: lean-startup-agent
 status: active
 updated: 2026-06-17
-goal_version: 48b98eb3bf06
+goal_version: 0353f5e8b8d2
 gtm_route: toy
 engine: N/A
 maturity_stage: wizard-sandbox
@@ -37,57 +37,33 @@ User can see the links they created and how many times each was clicked.
 
 ## 해야할 일
 
-**공유 계약 (모든 파트가 이 계약을 기준으로 구현)**
+**Part 1 — 공유 데이터 계약: `src/app/models.py`**
+`LinkRecord` dataclass를 정의한다. 필드: `slug: str`, `original_url: str`, `created_at: str`(ISO-8601), `click_count: int`. 모든 파트가 이 타입을 공통 인터페이스로 사용한다. (A-1)
 
-`Link` 데이터클래스: `short_code: str`, `original_url: str`, `click_count: int`, `created_at: str` (ISO 8601). `db.py`가 외부로 노출해야 할 함수 시그니처:
-- `init_db(db_path: str) -> None`
-- `create_link(db_path: str, short_code: str, original_url: str) -> Link`
-- `get_link(db_path: str, short_code: str) -> Link | None`
-- `increment_click(db_path: str, short_code: str) -> None`
-- `list_links(db_path: str) -> list[Link]`
+**Part 2 — 영속 스토리지: `src/app/storage.py`**
+표준 라이브러리 `sqlite3`(또는 `json` + `pathlib`)만으로 파일 기반 저장소를 구현한다. 제공하는 함수 시그니처:
+- `load_all_links() -> list[LinkRecord]`
+- `find_link(slug: str) -> LinkRecord | None`
+- `save_link(record: LinkRecord) -> None`
+- `increment_click(slug: str) -> None` — 해당 slug의 `click_count`를 1 증가시키고 즉시 커밋
 
-핸들러 응답 타입: `Response = tuple[int, dict[str, str], str]` (상태코드, 헤더, 바디).
+`threading.Lock`으로 동시 쓰기 충돌을 방지한다. (A-1)
 
----
+**Part 3 — 리디렉트 핸들러: `src/app/handlers.py` (redirect 부분)**
+`handle_redirect(slug: str, response)` 함수는 `storage.find_link(slug)`로 레코드를 조회하고, 존재하면 `storage.increment_click(slug)`를 호출한 뒤 HTTP 302로 `original_url`로 보낸다. 존재하지 않으면 404를 반환한다. 리디렉트가 일어날 때마다 카운트가 반드시 증가해야 한다. (A-1)
 
-**파트 1 — `src/app/models.py`** [A-1]
+**Part 4 — 링크 목록 뷰: `src/app/handlers.py` (list 부분) + `src/app/templates/list.html`**
+`handle_list(response)` 함수는 `storage.load_all_links()`를 호출해 `created_at` 내림차순으로 정렬한 뒤, `list.html` 템플릿을 표준 라이브러리 `string.Template`으로 렌더링해 HTML 응답으로 반환한다. 템플릿은 Short URL, Original URL, Created At, Clicks 컬럼을 가진 `<table>`을 포함한다. 외부 템플릿 엔진 사용 금지. (A-1)
 
-위 공유 계약의 `Link` 데이터클래스를 정의한다. `dataclasses` 외 어떤 모듈도 임포트하지 않는다. 모든 다른 모듈이 이 파일에서 `Link`를 가져온다.
+**Part 5 — 라우터 배선: `src/app/app.py`**
+표준 라이브러리 `http.server`의 `BaseHTTPRequestHandler`를 상속해 두 경로를 디스패치한다:
+- `GET /` → `handle_list`
+- `GET /<slug>` → `handle_redirect`
 
----
+`if __name__ == "__main__"` 블록에서 `HTTPServer`로 기동한다. (A-1)
 
-**파트 2 — `src/app/db.py`** [A-1]
-
-표준 라이브러리 `sqlite3`만 사용하는 영속성 계층. `init_db`는 `links` 테이블(`short_code TEXT PRIMARY KEY`, `original_url TEXT NOT NULL`, `click_count INTEGER NOT NULL DEFAULT 0`, `created_at TEXT NOT NULL`)을 생성한다. 공유 계약의 다섯 함수를 모두 구현한다. `increment_click`은 `UPDATE links SET click_count = click_count + 1 WHERE short_code = ?` 단일 쿼리로 처리한다. `list_links`는 `created_at DESC` 정렬로 반환한다. 임포트: `sqlite3`, `dataclasses`, `models`.
-
----
-
-**파트 3 — `src/app/handlers.py`** [A-1]
-
-순수 라우팅 함수 모음. HTTP 서버 구현과 분리된다.
-
-- `handle_redirect(db_path, short_code) -> Response` — `get_link`로 조회; 존재하면 `increment_click` 후 302 + `Location` 헤더 반환, 없으면 404.
-- `handle_list(db_path) -> Response` — `list_links` 호출 후 Short Code · Original URL · Clicks · Created At 4열 HTML 테이블 문자열을 200으로 반환. 이 뷰가 A-1의 "list/table view"를 충족한다.
-- `handle_create(db_path, body: str) -> Response` — `urllib.parse.parse_qs`로 폼 바디(`short_code`, `url`)를 파싱해 `create_link` 호출 후 `/links`로 303 리다이렉트. 링크를 목록에 올리기 위한 최소 생성 경로.
-
-임포트: `urllib.parse`, `models`, `db`.
-
----
-
-**파트 4 — `src/app/server.py`** [A-1]
-
-진입점. `http.server.BaseHTTPRequestHandler`를 서브클래싱해 `do_GET` / `do_POST`를 구현한다. 경로 파싱 규칙:
-- `GET /links` → `handle_list`
-- `GET /<code>` (그 외) → `handle_redirect`
-- `POST /links` → `handle_create`
-
-`PORT` 환경 변수(기본값 `8000`)로 `HTTPServer`를 바인딩하고 `init_db` 호출 뒤 `serve_forever()`로 실행. `DB_PATH` 환경 변수로 SQLite 파일 위치를 제어한다. 임포트: `http.server`, `os`, `urllib.parse`, `handlers`, `db`.
-
----
-
-**파트 5 — 제약 검증: 표준 라이브러리 전용 임포트 경계** [구조적 제약]
-
-`src/app/check_imports.py`를 작성한다. `ast`로 `src/app/` 내 모든 `.py` 파일(단, 자기 자신 제외)을 파싱해 모든 최상위 `import` 및 `from … import` 노드에서 모듈명을 추출한다. 추출된 모듈명이 `sys.stdlib_module_names`(Python 3.10+) 또는 내부 사이드 모듈(`models`, `db`, `handlers`, `server`) 중 하나가 아니면 위반 목록을 출력하고 `sys.exit(1)`로 종료한다. 코딩 플래너가 이 스크립트를 실행하는 테스트 오라클을 작성한다. 동작 테스트 통과만으로는 이 제약을 충족하지 못한다.
+**Part 6 — 표준 라이브러리 전용 제약 검증: `src/app/check_stdlib.py`**
+`ast` 모듈로 `src/` 하위 모든 `.py` 파일을 파싱해 `Import` · `ImportFrom` 노드를 수집하고, `sys.stdlib_module_names`(Python ≥ 3.10) 또는 허용 모듈 목록과 대조한다. 서드파티 임포트가 하나라도 발견되면 해당 파일명·모듈명을 출력하고 `sys.exit(1)`로 종료한다. 평가자가 행동 테스트가 아닌 정적 분석 근거로 표준 라이브러리 전용 제약을 판정할 수 있도록 기계적 근거를 제공한다. (표준 라이브러리 전용 구조 제약)
 
 ## 수용기준 힌트 (성공의 모습)
 
