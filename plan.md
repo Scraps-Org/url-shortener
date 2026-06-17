@@ -3,7 +3,7 @@ product: "url-shortener"
 owner: lean-startup-agent
 status: active
 updated: 2026-06-17
-goal_version: 0353f5e8b8d2
+goal_version: 0d548496b543
 gtm_route: toy
 engine: N/A
 maturity_stage: wizard-sandbox
@@ -37,33 +37,42 @@ User can see the links they created and how many times each was clicked.
 
 ## 해야할 일
 
-**Part 1 — 공유 데이터 계약: `src/app/models.py`**
-`LinkRecord` dataclass를 정의한다. 필드: `slug: str`, `original_url: str`, `created_at: str`(ISO-8601), `click_count: int`. 모든 파트가 이 타입을 공통 인터페이스로 사용한다. (A-1)
+**Part 1 – Shared data contract** (`src/app/models.py`)
 
-**Part 2 — 영속 스토리지: `src/app/storage.py`**
-표준 라이브러리 `sqlite3`(또는 `json` + `pathlib`)만으로 파일 기반 저장소를 구현한다. 제공하는 함수 시그니처:
-- `load_all_links() -> list[LinkRecord]`
-- `find_link(slug: str) -> LinkRecord | None`
-- `save_link(record: LinkRecord) -> None`
-- `increment_click(slug: str) -> None` — 해당 slug의 `click_count`를 1 증가시키고 즉시 커밋
+`Link` 데이터클래스를 정의한다: `slug: str`, `original_url: str`, `created_at: str`, `click_count: int`. 모든 모듈이 이 타입에 의존하므로 가장 먼저 작성한다. `dataclasses` 모듈(표준 라이브러리)만 사용.
 
-`threading.Lock`으로 동시 쓰기 충돌을 방지한다. (A-1)
+---
 
-**Part 3 — 리디렉트 핸들러: `src/app/handlers.py` (redirect 부분)**
-`handle_redirect(slug: str, response)` 함수는 `storage.find_link(slug)`로 레코드를 조회하고, 존재하면 `storage.increment_click(slug)`를 호출한 뒤 HTTP 302로 `original_url`로 보낸다. 존재하지 않으면 404를 반환한다. 리디렉트가 일어날 때마다 카운트가 반드시 증가해야 한다. (A-1)
+**Part 2 – 스토리지 레이어** (`src/app/store.py`)
 
-**Part 4 — 링크 목록 뷰: `src/app/handlers.py` (list 부분) + `src/app/templates/list.html`**
-`handle_list(response)` 함수는 `storage.load_all_links()`를 호출해 `created_at` 내림차순으로 정렬한 뒤, `list.html` 템플릿을 표준 라이브러리 `string.Template`으로 렌더링해 HTML 응답으로 반환한다. 템플릿은 Short URL, Original URL, Created At, Clicks 컬럼을 가진 `<table>`을 포함한다. 외부 템플릿 엔진 사용 금지. (A-1)
+`models.Link`를 가져와 JSON 파일(또는 인메모리 `dict`) 기반 저장소를 구현한다. 공개 인터페이스:
 
-**Part 5 — 라우터 배선: `src/app/app.py`**
-표준 라이브러리 `http.server`의 `BaseHTTPRequestHandler`를 상속해 두 경로를 디스패치한다:
-- `GET /` → `handle_list`
-- `GET /<slug>` → `handle_redirect`
+```
+add(slug: str, original_url: str) -> Link
+get(slug: str) -> Link | None
+list_all() -> list[Link]
+increment_click(slug: str) -> None
+```
 
-`if __name__ == "__main__"` 블록에서 `HTTPServer`로 기동한다. (A-1)
+`json`, `threading.Lock`, `datetime` 등 표준 라이브러리만 사용. `increment_click`은 해당 슬러그의 `click_count`를 1 올리고 즉시 영속화한다. **A-1** 의 클릭 카운트 증가 요구사항을 담당.
 
-**Part 6 — 표준 라이브러리 전용 제약 검증: `src/app/check_stdlib.py`**
-`ast` 모듈로 `src/` 하위 모든 `.py` 파일을 파싱해 `Import` · `ImportFrom` 노드를 수집하고, `sys.stdlib_module_names`(Python ≥ 3.10) 또는 허용 모듈 목록과 대조한다. 서드파티 임포트가 하나라도 발견되면 해당 파일명·모듈명을 출력하고 `sys.exit(1)`로 종료한다. 평가자가 행동 테스트가 아닌 정적 분석 근거로 표준 라이브러리 전용 제약을 판정할 수 있도록 기계적 근거를 제공한다. (표준 라이브러리 전용 구조 제약)
+---
+
+**Part 3 – 리다이렉트 핸들러** (`src/app/handlers.py`)
+
+`GET /<slug>` 요청에 대해: `store.get(slug)`로 링크를 조회하고, 존재하면 `store.increment_click(slug)`를 호출한 뒤 `original_url`로 HTTP 302 응답을 반환한다. 슬러그가 없으면 404를 반환한다. **A-1** (리다이렉트 시 클릭 카운트 증가).
+
+---
+
+**Part 4 – 목록 뷰 핸들러** (`src/app/handlers.py` 내 별도 함수)
+
+`GET /` 또는 `GET /links` 요청에 대해: `store.list_all()`을 호출하고, 생성된 단축 링크(클릭 가능한 `<a>` 태그) · 원본 URL · 생성 일시 · 클릭 수 컬럼을 가진 HTML 테이블을 응답 본문으로 렌더링한다. `string` 포매팅 또는 표준 라이브러리 `html` 모듈로 이스케이프. **A-1** (목록/테이블 뷰).
+
+---
+
+**Part 5 – HTTP 서버 진입점** (`src/app/server.py`)
+
+`http.server.HTTPServer`와 `http.server.BaseHTTPRequestHandler` 서브클래스를 사용해 URL 패턴에 따라 Part 3·4 핸들러로 라우팅한다. 스토어 싱글턴을 초기화하고 CLI 인수(`argparse`)로 포트를 받는다. 표준 라이브러리만 사용.
 
 ## 수용기준 힌트 (성공의 모습)
 
