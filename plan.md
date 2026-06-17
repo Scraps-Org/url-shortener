@@ -3,7 +3,7 @@ product: "url-shortener"
 owner: lean-startup-agent
 status: active
 updated: 2026-06-17
-goal_version: 3463ceb601bb
+goal_version: dfa5ca4fba91
 gtm_route: toy
 engine: N/A
 maturity_stage: wizard-sandbox
@@ -37,44 +37,23 @@ User can see the links they created and how many times each was clicked.
 
 ## 해야할 일
 
-**Part 1 — 공유 데이터 계약** (`src/app/models.py`)
+**파트 0 — 공유 계약: 데이터 모델 (`src/app/models.py`)**
+`ShortLink` dataclass를 정의한다: `code: str`, `original_url: str`, `created_at: str` (ISO-8601), `click_count: int`. 이 타입이 store · handler · renderer 전 계층의 공통 전달 객체가 된다. (A-1)
 
-`Link` dataclass 정의: `short_code: str`, `original_url: str`, `created_at: str` (ISO-8601), `click_count: int`. 스토리지, 리디렉트 핸들러, 뷰 렌더러가 이 타입을 공통으로 import한다. 다른 모든 파트의 기준점. Serves: A-1.
+**파트 1 — 스토리지 (`src/app/store.py`)**
+stdlib `sqlite3`로 `short_links` 테이블(`code TEXT PK`, `original_url TEXT`, `created_at TEXT`, `click_count INTEGER DEFAULT 0`)을 관리한다. 공개 함수: `init_db(path: str) -> None`, `save_link(code: str, original_url: str) -> ShortLink`, `get_link(code: str) -> ShortLink | None`, `list_links() -> list[ShortLink]`, `increment_click(code: str) -> None` — UPDATE를 원자적으로 수행해 동시 요청에서 카운트 유실을 방지한다. (A-1)
 
----
+**파트 2 — 리디렉트 핸들러 (`src/app/handlers.py` 내 `handle_redirect`)**
+`GET /<code>` 요청 수신 시 `get_link(code)`로 레코드를 조회하고, 존재하면 `increment_click(code)` 호출 후 `301 Location: original_url`로 응답한다. 미존재 코드는 `404`를 반환한다. 이 흐름이 클릭 카운트를 증가시키는 단일 경로다. (A-1)
 
-**Part 2 — 스토리지 레이어** (`src/app/storage.py`)
+**파트 3 — 목록 뷰 핸들러 (`src/app/handlers.py` 내 `handle_list`)**
+`GET /links` 요청 수신 시 `list_links()`를 호출하고, stdlib `html` 모듈로 XSS-이스케이프된 HTML 테이블(`단축코드 | 원본 URL | 클릭 수 | 생성일`)을 `text/html`로 반환한다. 외부 템플릿 라이브러리 없이 `str.format` 또는 `io.StringIO`로 생성한다. (A-1)
 
-`sqlite3`(표준 라이브러리)로 `links` 테이블을 관리한다. DB 경로는 모듈 수준 상수 `DB_PATH`로 설정. 초기 실행 시 테이블 자동 생성. 제공 함수:
-- `add_link(link: Link) -> None`
-- `get_link(short_code: str) -> Link | None`
-- `get_all_links() -> list[Link]` — `created_at` 내림차순
-- `increment_click(short_code: str) -> None` — `UPDATE links SET click_count = click_count + 1 WHERE short_code = ?` 로 원자적 갱신
+**파트 4 — HTTP 서버 진입점 (`src/app/server.py`, `src/app/main.py`)**
+`http.server.BaseHTTPRequestHandler`를 상속한 `AppHandler`를 `server.py`에 정의한다. `do_GET`은 경로를 파싱해 `/links` → `handle_list`, `/<code>` → `handle_redirect`로 분기한다. `main.py`는 `HTTPServer((host, port), AppHandler)`를 기동하고 `init_db`를 호출한다.
 
-Serves: A-1.
-
----
-
-**Part 3 — 리디렉트 핸들러** (`src/app/redirect.py`)
-
-`GET /<short_code>` 요청을 처리한다. `storage.get_link(short_code)`로 원본 URL을 조회하고, 존재하면 `storage.increment_click(short_code)` 호출 후 HTTP 302로 `original_url`에 리디렉트. 존재하지 않으면 404 반환. 클릭 카운트 증가는 반드시 리디렉트 응답 전에 완료되어야 한다. Serves: A-1.
-
----
-
-**Part 4 — 목록 뷰 렌더러** (`src/app/views.py`)
-
-`storage.get_all_links()`를 호출하고 순수 문자열 포매팅으로 HTML 문자열을 반환한다. `<table>` 컬럼: Short Link(`/<short_code>`를 클릭 가능한 `<a>` 태그로), Original URL(길면 말줄임 표시), Created At, Clicks. 외부 템플릿 엔진 없음. Serves: A-1.
-
----
-
-**Part 5 — HTTP 서버 / 라우터** (`src/app/server.py`)
-
-`http.server.BaseHTTPRequestHandler`를 서브클래싱하여 라우팅 처리:
-- `GET /` → `views.render_link_list()` 호출, `text/html` 200 응답
-- `GET /<short_code>` → `redirect.handle_redirect(short_code)` 위임
-- 그 외 경로 → 404
-
-`http.server.HTTPServer`로 포트(기본 8000) 바인딩. `if __name__ == "__main__": run_server()`를 진입점으로 지정. Serves: A-1.
+**파트 5 — 제약 검증 (stdlib 전용 import 정적 분석)**
+`src/app/` 하위 모든 `.py` 파일을 `ast.parse`로 파싱해 `import` 및 `from … import` 노드에서 최상위 패키지명을 추출하고, Python stdlib 모듈 집합(`sys.stdlib_module_names` 또는 수동 화이트리스트)과 대조한다. 서드파티 패키지 이름이 단 하나라도 발견되면 검사를 실패시킨다. 이 정적 분석 결과가 "stdlib 전용" 주장의 기계적 증거로 제출된다.
 
 ## 수용기준 힌트 (성공의 모습)
 
