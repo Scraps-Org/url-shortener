@@ -3,7 +3,7 @@ product: "url-shortener"
 owner: lean-startup-agent
 status: active
 updated: 2026-06-17
-goal_version: 561cb083721c
+goal_version: f5927b5a2305
 gtm_route: toy
 engine: N/A
 maturity_stage: wizard-sandbox
@@ -37,26 +37,32 @@ User can see the links they created and how many times each was clicked.
 
 ## 해야할 일
 
-**공유 계약 (Part 0 — 다른 모든 파트가 이것을 기반으로 구축됨)**
-`src/app/models.py` 를 먼저 작성한다. `Link` 데이터클래스(`short_code: str`, `original_url: str`, `click_count: int`, `created_at: str`)를 정의하고, 스토리지 계층이 노출할 함수 시그니처를 주석으로 명시한다: `init_db(db_path: str) -> None`, `create_link(db_path, short_code, original_url) -> Link`, `get_link(db_path, short_code) -> Link | None`, `get_all_links(db_path) -> list[Link]`, `increment_click(db_path, short_code) -> None`. 이 파일은 외부 의존성 없이 `dataclasses` 만 사용한다. (A-1)
+**Part 1 — Shared data contract · `src/app/models.py`**
+Defines `ShortLink` as a `dataclasses.dataclass` with fields `short_code: str`, `original_url: str`, `created_at: str` (ISO-8601), `click_count: int`. Every other module imports this type; nothing else is defined here. Serves: A-1.
 
-**Part 1 — 스토리지 계층**
-`src/app/store.py`: `sqlite3`(표준 라이브러리)를 사용해 `links` 테이블(`short_code TEXT PRIMARY KEY`, `original_url TEXT`, `click_count INTEGER DEFAULT 0`, `created_at TEXT`)을 관리한다. Part 0에서 정의한 시그니처를 구현한다. `increment_click` 은 `UPDATE … SET click_count = click_count + 1 WHERE short_code = ?` 단일 쿼리로 처리해 동시성 충돌을 최소화한다. (A-1)
+**Part 2 — Storage layer · `src/app/storage.py`**
+Uses stdlib `sqlite3` against a local `links.db` file. Exposes the following functions that all return or accept `ShortLink` from Part 1:
+- `init_db() -> None` — creates the `links` table (short_code PRIMARY KEY, original_url, created_at, click_count INTEGER DEFAULT 0) if absent.
+- `save_link(short_code: str, original_url: str) -> ShortLink` — inserts a new row and returns the populated model.
+- `get_link(short_code: str) -> ShortLink | None` — fetches one row by short code.
+- `increment_click(short_code: str) -> None` — runs `UPDATE … SET click_count = click_count + 1` atomically.
+- `list_links() -> list[ShortLink]` — returns all rows ordered by `created_at DESC`.
 
-**Part 2 — 리다이렉트 핸들러 (클릭 카운트 증가)**
-`src/app/handlers.py` 내 `handle_redirect(short_code: str, db_path: str) -> tuple[int, str]` 함수: `get_link` 으로 원본 URL을 조회한 뒤 `increment_click` 을 호출하고, HTTP 302 Location 헤더용 `(302, original_url)` 을 반환한다. 링크가 없으면 `(404, "")` 를 반환한다. 이 함수가 redirect 전에 반드시 카운트를 올리는 유일한 경로임을 명시한다. (A-1)
+Serves: A-1.
 
-**Part 3 — 목록 뷰 핸들러**
-같은 `src/app/handlers.py` 에 `handle_list(db_path: str) -> tuple[int, str]` 추가: `get_all_links` 로 전체 링크를 가져와 `render_link_table` 에 넘기고 `(200, html)` 을 반환한다. (A-1)
+**Part 3 — Redirect handler · `src/app/redirect.py`**
+Provides `handle_redirect(short_code: str) -> tuple[int, str]` where the tuple is `(http_status, value)`. Calls `storage.get_link`, and if found calls `storage.increment_click` then returns `(302, original_url)`; if not found returns `(404, "Not found")`. The increment occurs before the redirect response so every followed link registers a hit. Serves: A-1.
 
-**Part 4 — HTML 템플릿**
-`src/app/templates.py`: `render_link_table(links: list[Link]) -> str` 함수 하나만 담는다. 표준 문자열 포매팅(`str.join`, f-string)으로 `<table>` 을 생성하며, 열은 Short Code, Original URL, Clicks, Created At 순서다. 외부 템플릿 엔진을 사용하지 않는다. (A-1)
+**Part 4 — Dashboard view · `src/app/dashboard.py`**
+Provides `render_dashboard() -> str`. Calls `storage.list_links()` and builds a plain HTML string containing a `<table>` with columns: Short Code, Original URL, Click Count, Created At. Uses only stdlib string formatting — no external templating. Serves: A-1.
 
-**Part 5 — 서버 라우팅**
-`src/app/server.py`: `http.server.BaseHTTPRequestHandler` 를 서브클래스화하여 `do_GET` 에서 경로를 분기한다. `GET /links` → `handle_list`, `GET /<code>` → `handle_redirect`, 그 외 → 404. `if __name__ == "__main__"` 블록에서 `init_db` 를 호출한 뒤 `HTTPServer` 를 기동한다. `db_path` 는 환경 변수 또는 기본값(`links.db`)으로 주입한다. (A-1)
+**Part 5 — HTTP server & routing · `src/app/server.py`**
+Subclasses `http.server.BaseHTTPRequestHandler` and wires three routes:
+- `GET /` → calls `render_dashboard()`, writes `200 text/html`.
+- `GET /<short_code>` → calls `handle_redirect(short_code)`, writes a `302 Location` header or a `404` body.
+- `POST /links` → parses `original_url` from the URL-encoded request body (stdlib `urllib.parse`), generates a short code (e.g. first 6 chars of `hashlib.md5` hex digest of the URL), calls `storage.save_link`, then redirects to `/`.
 
-**Part 6 — 제약 검사 (표준 라이브러리 전용)**
-`src/app/check_imports.py`: `ast` 모듈로 `src/app/` 하위 모든 `.py` 파일을 정적 분석하고, 각 `import` / `from … import` 구문에서 최상위 모듈명을 추출한 뒤 `sys.stdlib_module_names`(Python 3.10+) 또는 하드코딩된 허용 목록과 대조한다. 비표준 모듈이 하나라도 발견되면 목록을 출력하고 비정상 종료(`sys.exit(1)`)한다. 코딩 플래너가 이 스크립트를 오라클로 실행하는 테스트를 작성한다.
+Calls `storage.init_db()` once at startup. The `if __name__ == "__main__"` block starts `http.server.HTTPServer` on port 8000 (overridable by `PORT` env var via `os.environ`). Serves: A-1.
 
 ## 수용기준 힌트 (성공의 모습)
 
