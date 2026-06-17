@@ -3,7 +3,7 @@ product: "url-shortener"
 owner: lean-startup-agent
 status: active
 updated: 2026-06-17
-goal_version: dfa5ca4fba91
+goal_version: d560f99ea01a
 gtm_route: toy
 engine: N/A
 maturity_stage: wizard-sandbox
@@ -37,23 +37,53 @@ User can see the links they created and how many times each was clicked.
 
 ## 해야할 일
 
-**파트 0 — 공유 계약: 데이터 모델 (`src/app/models.py`)**
-`ShortLink` dataclass를 정의한다: `code: str`, `original_url: str`, `created_at: str` (ISO-8601), `click_count: int`. 이 타입이 store · handler · renderer 전 계층의 공통 전달 객체가 된다. (A-1)
+**Part 1 — 공유 데이터 계약 (`src/app/models.py`)** ·서비스A-1
 
-**파트 1 — 스토리지 (`src/app/store.py`)**
-stdlib `sqlite3`로 `short_links` 테이블(`code TEXT PK`, `original_url TEXT`, `created_at TEXT`, `click_count INTEGER DEFAULT 0`)을 관리한다. 공개 함수: `init_db(path: str) -> None`, `save_link(code: str, original_url: str) -> ShortLink`, `get_link(code: str) -> ShortLink | None`, `list_links() -> list[ShortLink]`, `increment_click(code: str) -> None` — UPDATE를 원자적으로 수행해 동시 요청에서 카운트 유실을 방지한다. (A-1)
+`dataclasses.dataclass`로 `Link`를 정의한다: 필드는 `short_code: str`, `original_url: str`, `click_count: int`, `created_at: str`(ISO-8601). 이 타입이 스토리지·핸들러·렌더러가 교환하는 유일한 단위이므로, 다른 파일은 이 모듈만 임포트하면 된다.
 
-**파트 2 — 리디렉트 핸들러 (`src/app/handlers.py` 내 `handle_redirect`)**
-`GET /<code>` 요청 수신 시 `get_link(code)`로 레코드를 조회하고, 존재하면 `increment_click(code)` 호출 후 `301 Location: original_url`로 응답한다. 미존재 코드는 `404`를 반환한다. 이 흐름이 클릭 카운트를 증가시키는 단일 경로다. (A-1)
+---
 
-**파트 3 — 목록 뷰 핸들러 (`src/app/handlers.py` 내 `handle_list`)**
-`GET /links` 요청 수신 시 `list_links()`를 호출하고, stdlib `html` 모듈로 XSS-이스케이프된 HTML 테이블(`단축코드 | 원본 URL | 클릭 수 | 생성일`)을 `text/html`로 반환한다. 외부 템플릿 라이브러리 없이 `str.format` 또는 `io.StringIO`로 생성한다. (A-1)
+**Part 2 — 영속 계층 (`src/app/store.py`)** · A-1
 
-**파트 4 — HTTP 서버 진입점 (`src/app/server.py`, `src/app/main.py`)**
-`http.server.BaseHTTPRequestHandler`를 상속한 `AppHandler`를 `server.py`에 정의한다. `do_GET`은 경로를 파싱해 `/links` → `handle_list`, `/<code>` → `handle_redirect`로 분기한다. `main.py`는 `HTTPServer((host, port), AppHandler)`를 기동하고 `init_db`를 호출한다.
+표준 라이브러리 `sqlite3`를 사용해 `links` 테이블(칼럼: `short_code TEXT PK`, `original_url TEXT`, `click_count INTEGER DEFAULT 0`, `created_at TEXT`)을 관리한다.  
+공개 인터페이스:
+- `init_db(db_path: str) -> None` — 테이블이 없으면 생성.
+- `get_all_links(db_path: str) -> list[Link]` — 생성일 내림차순 정렬.
+- `get_link(db_path: str, short_code: str) -> Link | None`
+- `increment_click(db_path: str, short_code: str) -> None` — `UPDATE … SET click_count = click_count + 1`.
+- `add_link(db_path: str, link: Link) -> None` — 링크 최초 저장(생성 흐름에서 호출).
 
-**파트 5 — 제약 검증 (stdlib 전용 import 정적 분석)**
-`src/app/` 하위 모든 `.py` 파일을 `ast.parse`로 파싱해 `import` 및 `from … import` 노드에서 최상위 패키지명을 추출하고, Python stdlib 모듈 집합(`sys.stdlib_module_names` 또는 수동 화이트리스트)과 대조한다. 서드파티 패키지 이름이 단 하나라도 발견되면 검사를 실패시킨다. 이 정적 분석 결과가 "stdlib 전용" 주장의 기계적 증거로 제출된다.
+`db_path`는 환경변수 `DB_PATH`에서 읽고 기본값은 `links.db`.
+
+---
+
+**Part 3 — 리다이렉트 핸들러 (`src/app/handlers.py`)** · A-1
+
+`GET /<short_code>` 요청을 처리한다. `get_link`로 레코드를 조회한 후, 존재하면 `increment_click`을 호출하고 302 응답 + `Location: <original_url>` 헤더를 반환한다. 레코드가 없으면 404를 반환한다. **리다이렉트 전에 카운트를 증가**시켜야 A-1의 "클릭 시 카운트 증가" 조건을 충족한다.
+
+---
+
+**Part 4 — 링크 목록 핸들러 (`src/app/handlers.py`)** · A-1
+
+`GET /` (또는 `GET /links`) 요청을 처리한다. `get_all_links`를 호출해 `Link` 목록을 얻고, Part 5의 `render_links_table`에 넘겨 HTML을 생성한 뒤 200 응답으로 반환한다. `Content-Type: text/html; charset=utf-8`.
+
+---
+
+**Part 5 — HTML 테이블 렌더러 (`src/app/render.py`)** · A-1
+
+`render_links_table(links: list[Link]) -> str` 한 함수만 노출한다. f-string으로 HTML을 직접 생성한다(템플릿 엔진 불필요). 출력은 `<table>`로, 각 행에 단축 코드, 원본 URL(클릭 가능 `<a>`), 클릭 수, 생성 일시를 열로 가진다. 링크가 없으면 "등록된 링크가 없습니다" 메시지를 반환한다.
+
+---
+
+**Part 6 — HTTP 서버 진입점 (`src/app/server.py`)** · A-1
+
+`http.server.BaseHTTPRequestHandler`를 서브클래스화해 `do_GET`에서 경로를 파싱한다: `/` → Part 4 핸들러, `/<short_code>` → Part 3 핸들러. `http.server.HTTPServer`로 서버를 초기화하고 실행 전 `init_db`를 호출한다. 포트는 환경변수 `PORT`(기본 8000)에서 읽는다.
+
+---
+
+**Part 7 — 표준 라이브러리 전용 제약 검증 (`src/app/_check_imports.py`)** · 구조적 제약
+
+`ast` 모듈로 `src/app/*.py` 파일 전체를 파싱해 모든 `import` 및 `from … import` 구문을 수집한다. 수집한 최상위 모듈 이름을 `sys.stdlib_module_names`(Python 3.10+) 또는 하드코딩된 stdlib 목록과 대조해, 외부 패키지가 단 하나라도 발견되면 목록과 함께 오류를 출력하고 비정상 종료(`sys.exit(1)`)한다. 이 스크립트를 실행하면 CI/평가자가 의존성 위반을 기계적으로 확인할 수 있다. (테스트 파일을 제외한 `src/app/` 디렉터리만 스캔한다.)
 
 ## 수용기준 힌트 (성공의 모습)
 
