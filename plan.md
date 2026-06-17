@@ -3,7 +3,7 @@ product: "url-shortener"
 owner: lean-startup-agent
 status: active
 updated: 2026-06-17
-goal_version: 1f8d3b737127
+goal_version: 9ca8b6ed5c89
 gtm_route: toy
 engine: N/A
 maturity_stage: wizard-sandbox
@@ -37,29 +37,29 @@ User can see the links they created and how many times each was clicked.
 
 ## 해야할 일
 
-**Part 1 – 공유 계약: 데이터 모델** (`src/app/models.py`)
+**Part 1 — 공유 계약: `Link` 데이터 모델 및 `LinkStore` 인터페이스** (`src/app/models.py`)
 
-`ShortLink` dataclass를 정의한다. 필드: `code: str`, `original_url: str`, `created_at: str`, `click_count: int`. 이 타입은 모든 하위 모듈이 공통으로 import하는 유일한 계약이며, 여기서 변경하면 전체에 전파된다. (Serves: A-1)
+`Link` 데이터클래스(`short_code: str`, `original_url: str`, `owner_id: str`, `click_count: int`, `created_at: datetime`)를 정의한다. 동일 파일에 `LinkStore` 프로토콜(구상 클래스가 구현할 계약)을 두고 메서드 서명을 명시한다: `add(link: Link) -> None`, `get(short_code: str) -> Link | None`, `list_by_owner(owner_id: str) -> list[Link]`, `increment_clicks(short_code: str) -> None`. 이후 모든 파트는 이 계약에만 의존한다. (A-1)
 
-**Part 2 – 스토리지 레이어** (`src/app/store.py`)
+**Part 2 — 스토리지 구현** (`src/app/storage.py`)
 
-모듈 수준 `dict[str, ShortLink]`를 내부 저장소로 사용하고, `threading.Lock`으로 동시성을 보호한다. 공개 함수 네 개를 노출한다: `save_link(link: ShortLink) -> None`, `get_link(code: str) -> ShortLink | None`, `increment_click(code: str) -> None`(lock 안에서 `click_count += 1`), `list_links() -> list[ShortLink]`(created_at 역순 정렬). 외부 의존성 없이 `threading`, `dataclasses`, `typing`만 사용한다. (Serves: A-1)
+`InMemoryLinkStore`가 `LinkStore`를 구현한다. 내부 상태는 `dict[str, Link]`(short_code → Link)이며, `increment_clicks`는 `threading.Lock`으로 카운터를 원자적으로 증가시킨다. `list_by_owner`는 `owner_id`로 필터링 후 `created_at` 기준 정렬 리스트를 반환한다. (A-1)
 
-**Part 3 – 리다이렉트 핸들러** (`src/app/redirect.py`)
+**Part 3 — 리디렉트 핸들러** (`src/app/redirect.py`)
 
-함수 `handle_redirect(code: str) -> tuple[int, str]`를 정의한다. `store.get_link(code)`로 링크를 조회하고 존재하면 `store.increment_click(code)` 호출 후 `(302, original_url)`을 반환, 없으면 `(404, "")`를 반환한다. HTTP 레이어와 분리된 순수 함수로 유지한다. (Serves: A-1)
+`http.server.BaseHTTPRequestHandler`를 상속한 `RedirectHandler`를 정의한다. `do_GET`에서 경로의 short_code를 추출하고 `store.increment_clicks(short_code)`를 호출한 뒤 `302` 응답으로 `original_url`로 리디렉트한다. short_code가 없으면 `404`를 반환한다. 스토어 인스턴스는 핸들러 클래스 속성으로 주입한다. (A-1 — 클릭 수 증가)
 
-**Part 4 – 목록 뷰 핸들러** (`src/app/list_view.py`)
+**Part 4 — 대시보드 뷰** (`src/app/dashboard.py`)
 
-함수 `handle_list() -> str`를 정의한다. `store.list_links()`를 호출해 전체 링크를 가져온 뒤, `html.escape`를 사용해 Short Code·Original URL·Click Count·Created At 열을 가진 HTML `<table>`을 문자열로 조립해 반환한다. 표준 라이브러리 `html` 모듈만 사용한다. (Serves: A-1)
+`DashboardHandler`가 `GET /dashboard`를 처리한다. `store.list_by_owner(owner_id)`를 호출하여 결과를 HTML `<table>`로 렌더링한다(컬럼: short_code, original_url, click_count, created_at). HTML 생성은 표준 라이브러리 문자열 포매팅만 사용하며 외부 템플릿 엔진을 쓰지 않는다. (A-1 — 리스트/테이블 뷰)
 
-**Part 5 – HTTP 애플리케이션 진입점** (`src/app/app.py`)
+**Part 5 — 애플리케이션 진입점** (`src/app/main.py`)
 
-`http.server.BaseHTTPRequestHandler`를 상속한 핸들러 클래스를 작성한다. `do_GET`에서 경로를 파싱해: `/` 또는 `/links`이면 `list_view.handle_list()`의 결과를 `200 text/html`로 응답하고, `/<code>` 패턴이면 `redirect.handle_redirect(code)`의 반환값으로 `302 Location` 또는 `404`를 응답한다. `HTTPServer`로 바인딩하며 `if __name__ == "__main__"`으로 실행 진입점을 제공한다. (Serves: A-1)
+`InMemoryLinkStore` 인스턴스를 생성하고 `RedirectHandler`·`DashboardHandler`의 클래스 속성에 주입한다. 두 핸들러를 하나의 `http.server.HTTPServer`에서 경로 prefix로 분기하는 라우팅 디스패처(`do_GET` 내 분기)를 구성한다. `if __name__ == "__main__"`에서 서버를 기동한다.
 
-**Part 6 – 제약 검증: 표준 라이브러리 전용 정적 분석** (`src/check_imports.py`)
+**Part 6 — 표준 라이브러리 제약 정적 검사** (`src/app/` 전체)
 
-`ast` 모듈로 `src/app/` 하위 모든 `.py` 파일을 파싱해 `Import` 및 `ImportFrom` 노드에서 최상위 모듈 이름을 수집한다. 수집된 이름 각각을 `sys.stdlib_module_names`(Python 3.10+) 또는 하드코딩된 stdlib 허용 목록과 대조해, 외부 패키지가 하나라도 발견되면 오류 메시지를 출력하고 `sys.exit(1)`로 종료한다. 이 스크립트는 행동 테스트가 아닌 소스코드 정적 검사이며, "표준 라이브러리만 사용" 구조 제약의 기계적 증거를 제공한다. (Serves: stdlib-only constraint)
+`ast` 모듈로 `src/app/` 내 모든 `.py` 파일을 파싱하여 `import` 및 `from … import` 노드를 수집한다. 각 최상위 모듈 이름을 `sys.stdlib_module_names`(Python 3.10+) 또는 수동 화이트리스트와 대조해 서드파티 모듈이 없음을 단언한다. 이 검사는 정적 분석(동작 테스트 아님)으로 수행하며 코딩 플래너가 테스트 파일로 구현한다. (A-1 전체의 구조 제약 근거)
 
 ## 수용기준 힌트 (성공의 모습)
 
