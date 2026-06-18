@@ -3,7 +3,7 @@ product: "url-shortener"
 owner: lean-startup-agent
 status: active
 updated: 2026-06-18
-goal_version: def77c1057ca
+goal_version: 56aa5342913a
 gtm_route: toy
 engine: N/A
 maturity_stage: wizard-sandbox
@@ -37,27 +37,23 @@ User can see the links they created and how many times each was clicked.
 
 ## 해야할 일
 
-**파트 0 — 공유 계약 (Shared Contract)**
-모든 파트가 참조하는 데이터 모델을 `src/app/models.py`에 정의한다. `Link` dataclass(또는 NamedTuple)로 `id: int`, `short_code: str`, `long_url: str`, `created_at: str`, `click_count: int` 필드를 포함한다. 스토리지 계층이 구현해야 할 함수 시그니처도 이 파일에 명세한다: `create_link(long_url: str) -> Link`, `get_all_links() -> list[Link]`, `get_link(short_code: str) -> Link | None`, `increment_click(short_code: str) -> None`. (A-1)
+**Part 1 — 공유 데이터 계약 (`src/app/models.py`)** [A-1]
+`ShortLink` 데이터클래스(또는 `NamedTuple`)를 정의한다. 필드: `short_code: str`, `original_url: str`, `click_count: int`, `created_at: str`(ISO-8601). 이 타입이 저장소·핸들러·뷰 사이의 단일 계약이 된다. `dataclasses` 모듈(표준 라이브러리)만 사용한다.
 
-**파트 1 — 스토리지 레이어 (`src/app/storage.py`)**
-stdlib의 `sqlite3`만 사용해 SQLite 파일 DB를 관리한다. `init_db(db_path: str) -> None`으로 `links` 테이블(`id`, `short_code UNIQUE`, `long_url`, `created_at`, `click_count INTEGER DEFAULT 0`)을 생성한다. 파트 0의 시그니처를 그대로 구현하되, `increment_click`은 `UPDATE … SET click_count = click_count + 1`로 원자적으로 갱신한다. `create_link`는 충돌 없는 6자 영숫자 `short_code`를 `secrets` 모듈(stdlib)로 생성한다. (A-1)
+**Part 2 — 저장소 (`src/app/store.py`)** [A-1]
+JSON 파일 하나(`links.json`)를 백엔드로 쓰는 저장소. `json`, `pathlib`, `threading.Lock`(동시성 보호)만 사용한다. 공개 함수: `load() → list[ShortLink]`, `save(links: list[ShortLink]) → None`, `get_by_code(code: str) → ShortLink | None`, `increment_click(code: str) → ShortLink | None`(카운트+1 후 덮어쓰기, 갱신된 객체 반환), `list_all() → list[ShortLink]`. `increment_click`은 load→mutate→save를 Lock 안에서 원자적으로 수행한다.
 
-**파트 2 — HTTP 핸들러 / 라우터 (`src/app/server.py`)**
-`http.server.BaseHTTPRequestHandler` 상속 클래스로 세 가지 경로를 처리한다.
-- `GET /` → 파트 3의 렌더러를 호출해 링크 목록 HTML 반환.
-- `POST /shorten` (body: `url=<long_url>`) → `create_link` 호출 후 `/`로 redirect.
-- `GET /{short_code}` → `get_link` 호출, 존재하면 `increment_click` 후 `302` redirect, 없으면 `404`.
-모든 DB 접근은 파트 1 함수만 사용한다. (A-1)
+**Part 3 — 리다이렉트 핸들러 (`src/app/redirect.py`)** [A-1]
+`handle_redirect(code: str) → tuple[int, str]`를 정의한다. 반환값은 `(http_status, location_or_error)`. 내부적으로 `store.increment_click(code)`를 호출해 카운트를 증가시킨 뒤 `(302, original_url)`을 반환하고, 코드가 없으면 `(404, "Not Found")`를 반환한다. 리다이렉트가 발생할 때만 카운트가 오르는 것이 핵심 불변식이다.
 
-**파트 3 — HTML 렌더러 (`src/app/templates.py`)**
-외부 템플릿 엔진 없이 Python f-string으로 HTML 문자열을 생성하는 순수 함수 `render_link_list(links: list[Link]) -> str`을 구현한다. 출력 결과에는 `short_code`, `long_url`, `click_count` 열을 가진 `<table>`이 포함되어야 하고, 링크 생성 폼(`<form method="post" action="/shorten">`)도 함께 렌더링한다. (A-1)
+**Part 4 — 목록 뷰 (`src/app/list_view.py`)** [A-1]
+`render_table(links: list[ShortLink]) → str`를 정의한다. `html` 표준 라이브러리의 `html.escape`로 값을 이스케이프한 뒤, `short_code` / `original_url` / `click_count` / `created_at` 네 열을 가진 HTML 테이블 문자열을 반환한다. 외부 템플릿 엔진 없이 f-string으로 조립한다.
 
-**파트 4 — 진입점 (`src/app/main.py`)**
-`init_db()`를 호출한 뒤 `http.server.HTTPServer`를 기본 포트(예: 8000)로 시작한다. DB 경로는 환경변수 `DB_PATH`(기본값 `links.db`)로 주입받는다.
+**Part 5 — HTTP 서버 및 진입점 (`src/app/server.py`, `src/app/main.py`)** [A-1]
+`server.py`: `http.server.BaseHTTPRequestHandler`를 상속하는 `LinkHandler`를 정의한다. `do_GET`에서 경로를 파싱(`urllib.parse.urlparse`)한다. 경로 `/` 또는 `/links` → `list_view.render_table(store.list_all())`을 200으로 응답. 경로 `/<code>` → `redirect.handle_redirect(code)` 결과에 따라 `Location` 헤더 설정 후 302 또는 404를 응답. `main.py`: `http.server.HTTPServer`를 초기화하고 `serve_forever()`를 호출하는 진입점.
 
-**파트 5 — 구조적 제약 검증 (`src/app/check_imports.py`)**
-`ast` 모듈로 `src/app/` 내 모든 `.py` 파일의 import 구문을 정적 분석하여, `stdlib` 외 외부 패키지가 임포트되지 않음을 단언하는 스크립트를 작성한다. 허용 목록은 `sys.stdlib_module_names`(Python 3.10+) 또는 하드코딩된 stdlib 집합으로 비교한다. 위반 발견 시 위반 모듈명과 파일명을 출력하고 비-0 exit code로 종료한다. 이 파트는 평가 oracle이 기계적으로 실행할 수 있어야 한다. (stdlib-only 구조 제약)
+**Part 6 — 표준 라이브러리 제약 검사** [구조적 제약]
+`ast` 모듈로 `src/app/` 아래 모든 `.py` 파일을 파싱해 `import` 및 `from … import` 노드를 수집한다. 수집된 최상위 모듈 이름 각각이 `sys.stdlib_module_names`(Python 3.10+) 또는 사전에 열거한 표준 라이브러리 목록에 포함되는지 단언한다. 외부 패키지가 단 하나라도 발견되면 실패로 판정한다. 이 검사는 정적 분석이므로 런타임 실행 없이도 결과가 결정된다.
 
 ## 수용기준 힌트 (성공의 모습)
 
