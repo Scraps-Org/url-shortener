@@ -1,33 +1,39 @@
 {
   "artifact_refs": {
     "merged_task_shas": [
-      "2de7ed5f997840d25f08d97bde1ba652b201e29e"
+      "3e36b4a6390f8510676ec5192170c761be266526",
+      "d5bf4ae501db4bf487ee307503c3c2afa9fb6ed0"
     ]
   },
-  "base_ref": "cbf8e25b2216eedc8688ff7b0661451952ef070f",
-  "code_integration_sha": "75a6acbedb46d0d4fc83767dbcd1d548ba1ff1b8",
+  "base_ref": "c976aa616ab5937c7a192ea9da7731639a12c812",
+  "code_integration_sha": "af84b224b2b5c187bbdd6d270725e9e53f31201e",
   "contract_version": "1.0",
-  "correlation_id": "eval-url-shortener-a4f28b475792",
-  "dispatch_id": "eval-url-shortener-a4f28b475792",
+  "correlation_id": "eval-url-shortener-9d68a7a31f50",
+  "dispatch_id": "eval-url-shortener-9d68a7a31f50",
   "engine_status": "engine_completed",
-  "generated_at": "2026-06-16T02:21:27.083743Z",
-  "goal_doc_sha": "a4f28b475792",
-  "goal_id": "url-shortener-a4f28b475792",
-  "integration_branch": "scraps/goal/url-shortener-a4f28b475792",
+  "generated_at": "2026-06-18T14:07:16.606867Z",
+  "goal_doc_sha": "9d68a7a31f50",
+  "goal_id": "url-shortener-9d68a7a31f50",
+  "integration_branch": "scraps/goal/url-shortener-9d68a7a31f50",
   "known_gaps": [],
   "metrics_ref": {
     "path": "metrics.json",
-    "sha256": "f7d2c21cde59599a822e12965e147a5ff0eb9f90c34ad2f54e24c70966b4eb99"
+    "sha256": "df4baad952798a3f8ca89dc3098e91d07f1d873b247ae9605d54915829a15c9f"
   },
   "owner_verify_result": {
     "checks": [
       {
-        "name": "shortenform-full-url-copy",
+        "name": "storage-list-links",
+        "status": "green",
+        "tier": "extended"
+      },
+      {
+        "name": "links-dashboard-view",
         "status": "green",
         "tier": "extended"
       }
     ],
-    "merged_task_count": 1,
+    "merged_task_count": 2,
     "submit_gate_passed": true,
     "tier": "extended"
   },
@@ -35,21 +41,6 @@
   "recorded_acceptance_measurement": [
     {
       "criterion": "A-1",
-      "how_measured": "none",
-      "observed": "not_engine_measurable"
-    },
-    {
-      "criterion": "A-2",
-      "how_measured": "none",
-      "observed": "not_engine_measurable"
-    },
-    {
-      "criterion": "A-3",
-      "how_measured": "none",
-      "observed": "not_engine_measurable"
-    },
-    {
-      "criterion": "A-4",
       "how_measured": "none",
       "observed": "not_engine_measurable"
     },
@@ -75,22 +66,35 @@
           "status": "passed"
         },
         {
-          "command": "pnpm exec vitest run tests/components/ShortenForm.test.tsx",
+          "command": "pnpm exec vitest run tests/lib/storage.test.ts tests/lib/upstash-storage.test.ts tests/lib/store.test.ts",
           "exit_code": 0,
           "status": "passed"
         },
         {
-          "command": "pnpm exec vitest run",
+          "command": "pnpm exec tsc --noEmit",
+          "exit_code": 0,
+          "status": "passed"
+        }
+      ],
+      "log_ref": "event:task.verification_evidence:storage-list-links",
+      "name": "storage-list-links",
+      "status": "green",
+      "tier": "extended"
+    },
+    {
+      "checks": [
+        {
+          "command": "pnpm install --frozen-lockfile",
           "exit_code": 0,
           "status": "passed"
         },
         {
-          "command": "pnpm run lint",
+          "command": "pnpm exec vitest run tests/components/LinksTable.test.tsx",
           "exit_code": 0,
           "status": "passed"
         },
         {
-          "command": "pnpm run typecheck",
+          "command": "pnpm exec tsc --noEmit",
           "exit_code": 0,
           "status": "passed"
         },
@@ -100,8 +104,8 @@
           "status": "passed"
         }
       ],
-      "log_ref": "event:task.verification_evidence:shortenform-full-url-copy",
-      "name": "shortenform-full-url-copy",
+      "log_ref": "event:task.verification_evidence:links-dashboard-view",
+      "name": "links-dashboard-view",
       "status": "green",
       "tier": "extended"
     }
