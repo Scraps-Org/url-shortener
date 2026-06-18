@@ -2,8 +2,8 @@
 product: "url-shortener"
 owner: lean-startup-agent
 status: active
-updated: 2026-06-17
-goal_version: f5927b5a2305
+updated: 2026-06-18
+goal_version: 132b94dcfba4
 gtm_route: toy
 engine: N/A
 maturity_stage: wizard-sandbox
@@ -37,32 +37,31 @@ User can see the links they created and how many times each was clicked.
 
 ## 해야할 일
 
-**Part 1 — Shared data contract · `src/app/models.py`**
-Defines `ShortLink` as a `dataclasses.dataclass` with fields `short_code: str`, `original_url: str`, `created_at: str` (ISO-8601), `click_count: int`. Every other module imports this type; nothing else is defined here. Serves: A-1.
+**Part 1 – 공유 계약: `src/app/models.py`** (serves A-1)
+`ShortLink` dataclass를 정의한다. 필드: `short_code: str`, `original_url: str`, `created_at: str` (ISO-8601), `click_count: int` (기본값 0). 모든 모듈이 이 타입 하나만 공유한다.
 
-**Part 2 — Storage layer · `src/app/storage.py`**
-Uses stdlib `sqlite3` against a local `links.db` file. Exposes the following functions that all return or accept `ShortLink` from Part 1:
-- `init_db() -> None` — creates the `links` table (short_code PRIMARY KEY, original_url, created_at, click_count INTEGER DEFAULT 0) if absent.
-- `save_link(short_code: str, original_url: str) -> ShortLink` — inserts a new row and returns the populated model.
-- `get_link(short_code: str) -> ShortLink | None` — fetches one row by short code.
-- `increment_click(short_code: str) -> None` — runs `UPDATE … SET click_count = click_count + 1` atomically.
-- `list_links() -> list[ShortLink]` — returns all rows ordered by `created_at DESC`.
+**Part 2 – 스토리지 계층: `src/app/store.py`** (serves A-1)
+`LinkStore` 클래스를 구현한다. 내부 상태는 `dict[str, ShortLink]`이고 `threading.Lock`으로 보호한다. 공개 인터페이스:
+- `add(original_url: str) -> ShortLink` — `secrets.token_urlsafe(6)`으로 short_code 생성 후 저장
+- `get(short_code: str) -> ShortLink | None`
+- `increment_click(short_code: str) -> None` — 락 내에서 `click_count += 1`
+- `list_all() -> list[ShortLink]` — 생성 시각 오름차순 정렬
 
-Serves: A-1.
+`models.py`와 표준 라이브러리(`threading`, `secrets`, `datetime`)만 임포트한다.
 
-**Part 3 — Redirect handler · `src/app/redirect.py`**
-Provides `handle_redirect(short_code: str) -> tuple[int, str]` where the tuple is `(http_status, value)`. Calls `storage.get_link`, and if found calls `storage.increment_click` then returns `(302, original_url)`; if not found returns `(404, "Not found")`. The increment occurs before the redirect response so every followed link registers a hit. Serves: A-1.
+**Part 3 – HTTP 핸들러: `src/app/handlers.py`** (serves A-1)
+`http.server.BaseHTTPRequestHandler`를 상속한 `LinkHandler`를 정의한다. 생성자 시그니처: `__init__(self, store: LinkStore, *args, **kwargs)`. 라우팅 규칙:
+- `GET /links` → `store.list_all()`의 결과를 HTML `<table>`(컬럼: Short Code, Original URL, Created At, Clicks)로 렌더링해 `text/html` 응답
+- `GET /<code>` → `store.get(code)` 조회 후 `store.increment_click(code)` 호출, `302 Location` 헤더로 리다이렉트; 없으면 404
+- 그 외 경로 → 404
 
-**Part 4 — Dashboard view · `src/app/dashboard.py`**
-Provides `render_dashboard() -> str`. Calls `storage.list_links()` and builds a plain HTML string containing a `<table>` with columns: Short Code, Original URL, Click Count, Created At. Uses only stdlib string formatting — no external templating. Serves: A-1.
+`models.py`, `store.py`, 표준 라이브러리만 임포트한다.
 
-**Part 5 — HTTP server & routing · `src/app/server.py`**
-Subclasses `http.server.BaseHTTPRequestHandler` and wires three routes:
-- `GET /` → calls `render_dashboard()`, writes `200 text/html`.
-- `GET /<short_code>` → calls `handle_redirect(short_code)`, writes a `302 Location` header or a `404` body.
-- `POST /links` → parses `original_url` from the URL-encoded request body (stdlib `urllib.parse`), generates a short code (e.g. first 6 chars of `hashlib.md5` hex digest of the URL), calls `storage.save_link`, then redirects to `/`.
+**Part 4 – 서버 진입점: `src/app/server.py`** (serves A-1)
+`LinkStore` 싱글턴을 생성하고 `functools.partial`로 `LinkHandler`에 주입한다. `http.server.HTTPServer(('', 8000), handler_factory)`로 서버를 기동한다. CLI 인자(`sys.argv`)로 포트를 선택적으로 오버라이드할 수 있다. 표준 라이브러리만 임포트한다.
 
-Calls `storage.init_db()` once at startup. The `if __name__ == "__main__"` block starts `http.server.HTTPServer` on port 8000 (overridable by `PORT` env var via `os.environ`). Serves: A-1.
+**Part 5 – 제약 검증 (표준 라이브러리 전용)** (structural constraint check)
+`src/app/` 내 모든 `.py` 파일에 대해 `ast` 모듈로 `Import` / `ImportFrom` 노드를 수집하고, 각 모듈명이 `sys.stdlib_module_names`(Python 3.10+) 또는 로컬 패키지(`models`, `store`, `handlers`)에 속하는지 정적으로 검사한다. 외부 서드파티 패키지가 단 하나라도 발견되면 비정상 종료(non-zero exit)하는 스크립트의 명세. 코딩 플래너가 실제 스크립트를 작성한다.
 
 ## 수용기준 힌트 (성공의 모습)
 
