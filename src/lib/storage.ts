@@ -4,6 +4,7 @@ export interface LinkRecord {
   code: string;
   url: string;
   clicks: number;
+  createdAt: string;
 }
 
 export interface Storage {
@@ -16,10 +17,10 @@ export interface Storage {
 }
 
 export class MemoryStorage implements Storage {
-  private store = new Map<string, { url: string; clicks: number }>();
+  private store = new Map<string, { url: string; clicks: number; createdAt: string }>();
 
   async save(code: string, url: string): Promise<void> {
-    this.store.set(code, { url, clicks: 0 });
+    this.store.set(code, { url, clicks: 0, createdAt: new Date().toISOString() });
   }
 
   async get(code: string): Promise<string | undefined> {
@@ -44,11 +45,14 @@ export class MemoryStorage implements Storage {
   }
 
   async list(): Promise<LinkRecord[]> {
-    return Array.from(this.store.entries()).map(([code, entry]) => ({
-      code,
-      url: entry.url,
-      clicks: entry.clicks,
-    }));
+    return Array.from(this.store.entries())
+      .map(([code, entry]) => ({
+        code,
+        url: entry.url,
+        clicks: entry.clicks,
+        createdAt: entry.createdAt,
+      }))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 }
 
