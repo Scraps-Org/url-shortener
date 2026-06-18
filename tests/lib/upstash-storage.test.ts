@@ -7,6 +7,7 @@ const redisMethods = {
   get: vi.fn(),
   exists: vi.fn(),
   incr: vi.fn(),
+  keys: vi.fn(),
 };
 
 vi.mock('@upstash/redis', () => ({
@@ -22,6 +23,7 @@ describe('UpstashStorage', () => {
     redisMethods.get.mockReset();
     redisMethods.exists.mockReset();
     redisMethods.incr.mockReset();
+    redisMethods.keys.mockReset();
     vi.mocked(Redis).mockClear();
   });
 
@@ -81,6 +83,36 @@ describe('UpstashStorage', () => {
     expect(redisMethods.get).toHaveBeenCalledWith('clicks:abc');
     redisMethods.get.mockResolvedValueOnce(null);
     expect(await storage.getClicks('nope')).toBeUndefined();
+  });
+
+  it('save() also records created:<code> as an ISO string', async () => {
+    const storage = new UpstashStorage({ url: 'u', token: 't' });
+    await storage.save('abc', 'https://example.com');
+    const createdCall = redisMethods.set.mock.calls.find(([key]) => key === 'created:abc');
+    expect(createdCall).toBeDefined();
+    expect(typeof createdCall?.[1]).toBe('string');
+  });
+
+  it('list() returns records sorted by createdAt descending', async () => {
+    const data: Record<string, string | number> = {
+      'url:old': 'https://example.com/old',
+      'clicks:old': 2,
+      'created:old': '2024-01-01T00:00:00.000Z',
+      'url:new': 'https://example.com/new',
+      'clicks:new': 5,
+      'created:new': '2024-01-02T00:00:00.000Z',
+    };
+    redisMethods.keys.mockResolvedValueOnce(['url:old', 'url:new']);
+    redisMethods.get.mockImplementation(async (key: string) => data[key] ?? null);
+
+    const storage = new UpstashStorage({ url: 'u', token: 't' });
+    const records = await storage.list();
+
+    expect(redisMethods.keys).toHaveBeenCalledWith('url:*');
+    expect(records).toEqual([
+      { code: 'new', url: 'https://example.com/new', clicks: 5, createdAt: '2024-01-02T00:00:00.000Z' },
+      { code: 'old', url: 'https://example.com/old', clicks: 2, createdAt: '2024-01-01T00:00:00.000Z' },
+    ]);
   });
 });
 

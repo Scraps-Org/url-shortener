@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { MemoryStorage, getStorage } from '../../src/lib/storage';
-import { shorten, lookup, recordClick, getClicks } from '../../src/lib/store';
+import { shorten, lookup, recordClick, getClicks, listLinks } from '../../src/lib/store';
 
 describe('MemoryStorage', () => {
   it('returns promises and stores/retrieves values', async () => {
@@ -41,6 +41,37 @@ describe('MemoryStorage', () => {
     expect(await storage.incrementClicks('nope')).toBeUndefined();
     expect(await storage.has('nope')).toBe(false);
   });
+
+  it('list() returns all entries newest-first with clicks', async () => {
+    vi.useFakeTimers();
+    try {
+      const storage = new MemoryStorage();
+
+      vi.setSystemTime(new Date('2024-01-01T00:00:00.000Z'));
+      await storage.save('old', 'https://example.com/old');
+
+      vi.setSystemTime(new Date('2024-01-02T00:00:00.000Z'));
+      await storage.save('new', 'https://example.com/new');
+      await storage.incrementClicks('new');
+
+      const records = await storage.list();
+      expect(records.map((r) => r.code)).toEqual(['new', 'old']);
+      expect(records[0]).toMatchObject({
+        code: 'new',
+        url: 'https://example.com/new',
+        clicks: 1,
+        createdAt: '2024-01-02T00:00:00.000Z',
+      });
+      expect(records[1]).toMatchObject({
+        code: 'old',
+        url: 'https://example.com/old',
+        clicks: 0,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('getStorage', () => {
@@ -65,5 +96,15 @@ describe('store async round-trip', () => {
     expect(await getClicks(code)).toBe(0);
     expect(await recordClick(code)).toBe(1);
     expect(await getClicks(code)).toBe(1);
+  });
+
+  it('listLinks() includes every shortened code', async () => {
+    const codeA = await shorten('https://example.com/list-a');
+    const codeB = await shorten('https://example.com/list-b');
+
+    const records = await listLinks();
+    const codes = records.map((r) => r.code);
+    expect(codes.some((c) => c === codeA)).toBe(true);
+    expect(codes.some((c) => c === codeB)).toBe(true);
   });
 });
