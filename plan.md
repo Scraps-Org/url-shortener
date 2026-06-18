@@ -3,7 +3,7 @@ product: "url-shortener"
 owner: lean-startup-agent
 status: active
 updated: 2026-06-18
-goal_version: 33d318f296a7
+goal_version: dd242c49c44c
 gtm_route: toy
 engine: N/A
 maturity_stage: wizard-sandbox
@@ -37,39 +37,30 @@ User can see the links they created and how many times each was clicked.
 
 ## 해야할 일
 
-**파트 1 – 공유 계약: 데이터 모델 & DB 스키마** (`src/app/models.py`) [A-1]
+**파트 1 — 공유 계약: 데이터 모델 (`src/app/models.py`)**
+`ShortLink` dataclass를 정의한다: `short_code: str`, `original_url: str`, `created_at: str` (ISO-8601), `click_count: int`. 이 타입이 모든 하위 파트의 공통 단위이다. [A-1]
 
-`Link` dataclass를 정의한다: 필드는 `short_code: str`, `original_url: str`, `created_at: str`, `click_count: int`. 아울러 `links` 테이블 DDL 문자열 상수 `CREATE_TABLE_SQL`을 export한다 (`short_code TEXT PRIMARY KEY, original_url TEXT NOT NULL, created_at TEXT NOT NULL, click_count INTEGER NOT NULL DEFAULT 0`). 다른 모든 모듈은 이 파일에서 `Link`와 `CREATE_TABLE_SQL`을 import하며, 이 파일 자체는 표준 라이브러리 `dataclasses`만 사용한다.
+**파트 2 — 저장소 계약 및 구현 (`src/app/store.py`)**
+파트 1의 `ShortLink`를 임포트한다. `threading.Lock`으로 보호되는 인메모리 딕셔너리(`dict[str, ShortLink]`)를 상태로 갖는다. 외부로 노출하는 함수 시그니처:
+- `create_link(original_url: str) -> ShortLink` — 고유한 `short_code`(6자 `secrets.token_urlsafe(4)`)를 생성하고 click_count=0으로 저장 후 반환.
+- `get_link(short_code: str) -> ShortLink | None` — 코드로 조회.
+- `increment_click(short_code: str) -> None` — click_count를 1 증가 (lock 내에서).
+- `list_links() -> list[ShortLink]` — 전체 링크를 `created_at` 내림차순으로 반환. [A-1]
 
----
+**파트 3 — HTTP 라우팅 및 핸들러 (`src/app/server.py`)**
+표준 라이브러리 `http.server.BaseHTTPRequestHandler`를 서브클래스로 구현한다. 처리 경로:
+- `POST /links` — 폼 바디에서 `original_url`을 파싱하고 `store.create_link()`를 호출한 뒤 목록 페이지로 `303 See Other` 리디렉트.
+- `GET /<short_code>` — `store.get_link()`로 조회 → 없으면 404, 있으면 `store.increment_click()`을 호출한 뒤 `301` 또는 `302`로 원래 URL로 리디렉트. [A-1]
+- `GET /` — `store.list_links()`를 호출하고 `views.render_index()`(파트 4)로 생성한 HTML을 반환. [A-1]
 
-**파트 2 – 저장소 계층** (`src/app/store.py`) [A-1]
+**파트 4 — HTML 렌더링 (`src/app/views.py`)**
+파트 1의 `ShortLink`를 임포트한다. `render_index(links: list[ShortLink]) -> str` 함수 하나를 노출한다. 반환값은 완전한 HTML 문자열로, 링크 생성 폼(original_url 입력 + 제출 버튼)과 `short_code`, `original_url`, `click_count`, `created_at` 컬럼을 가진 `<table>`을 포함한다. f-string 또는 `str.format`만 사용하며 외부 템플릿 엔진 없이 작성한다. [A-1]
 
-`sqlite3`, `datetime`, `models` 만 import한다. 네 함수의 시그니처를 고정한다:
-- `init_db(db_path: str) -> sqlite3.Connection` — DB를 열거나 생성하고 `CREATE_TABLE_SQL`을 실행한다.
-- `create_link(conn, short_code: str, original_url: str) -> Link` — 행을 삽입하고 `Link`를 반환한다. `created_at`은 `datetime.utcnow().isoformat()`을 사용하며, `short_code` 중복 시 `ValueError`를 raise한다.
-- `increment_click(conn, short_code: str) -> None` — `UPDATE links SET click_count = click_count + 1 WHERE short_code = ?` 실행; 해당 코드가 없으면 `KeyError`를 raise한다.
-- `list_links(conn) -> list[Link]` — `SELECT * FROM links ORDER BY created_at DESC`로 조회해 `Link` 인스턴스 목록을 반환한다.
+**파트 5 — 진입점 (`src/app/main.py`)**
+`http.server.HTTPServer`를 `(HOST, PORT)`로 생성하고 파트 3의 핸들러 클래스를 전달한 뒤 `serve_forever()`를 호출한다. HOST/PORT는 모듈 상단 상수로 명시한다. 의존 순서: `models` → `store` → `views` → `server` → `main`.
 
----
-
-**파트 3 – HTTP 핸들러** (`src/app/handlers.py`) [A-1]
-
-`http.server.BaseHTTPRequestHandler`를 상속한다. `GET /` → `_handle_list`, `GET /<short_code>` → `_handle_redirect`로 라우팅한다. `conn`은 서버 기동 전 클래스 변수 또는 팩토리 클로저로 주입한다.
-- `_handle_list`: `list_links(conn)` 결과를 HTML `<table>`로 렌더링한다. 컬럼은 *Short Link* (`<a href="/<short_code>">`), *Original URL*, *Created At*, *Clicks* 순이다. 상태 코드 200과 `Content-Type: text/html`을 반환한다.
-- `_handle_redirect`: `increment_click(conn, short_code)` 호출 후 `301 Location: <original_url>`로 응답한다. `short_code` 미존재 시 404를 반환한다.
-
----
-
-**파트 4 – 서버 진입점** (`src/app/server.py`) [A-1]
-
-`http.server.HTTPServer`, `os`, `store`, `handlers`만 사용한다. `DB_PATH`와 `PORT`를 `os.environ`에서 읽되 기본값을 제공한다. `init_db(DB_PATH)`로 연결을 획득하고, 핸들러 클래스에 `conn`을 주입한 뒤 `serve_forever()`를 호출한다. 이 파일이 유일한 `__main__` 진입점이다.
-
----
-
-**파트 5 – 제약 검증: 표준 라이브러리 한정 임포트 정적 분석** (구조적 제약) [A-1]
-
-`src/app/` 하위 모든 `.py` 파일을 대상으로 `ast` 모듈로 구문 트리를 순회해 `import` 및 `from … import` 구문에서 최상위 모듈명을 수집하는 독립 검사 스크립트를 작성한다. 수집된 모듈명이 `sys.stdlib_module_names` (Python 3.10+) 또는 명시적 허용 목록(하위 버전 대응) 외의 이름을 포함할 경우 해당 파일명·모듈명을 출력하고 비정상 종료(exit code 1)한다. 이 스크립트의 출력이 평가자의 기계적 판단 근거가 된다.
+**파트 6 — 구조적 제약 검증 (표준 라이브러리 전용)**
+`src/` 하위 모든 `.py` 파일에 대해 표준 라이브러리 `ast` 모듈로 임포트 노드(`ast.Import`, `ast.ImportFrom`)를 순회하고, `sys.stdlib_module_names`(Python 3.10+) 또는 수동 화이트리스트와 대조하여 서드파티 패키지가 없음을 정적으로 검증하는 스크립트를 `src/check_stdlib_only.py`에 작성한다. 이 스크립트는 위반 발견 시 비-0 종료 코드와 위반 모듈명을 출력해야 한다. 코딩 플래너가 이 스크립트를 실행하는 오라클 테스트를 작성한다.
 
 ## 수용기준 힌트 (성공의 모습)
 
