@@ -1,4 +1,4 @@
-import { LinkRecord } from '~/lib/store';
+import { LinkRecord } from '~/lib/storage';
 
 export function LinksTable({ links }: { links: LinkRecord[] }) {
   return (
@@ -8,6 +8,7 @@ export function LinksTable({ links }: { links: LinkRecord[] }) {
           <th>Short Link</th>
           <th>Target URL</th>
           <th>Clicks</th>
+          <th>Created At</th>
         </tr>
       </thead>
       <tbody>
@@ -18,6 +19,7 @@ export function LinksTable({ links }: { links: LinkRecord[] }) {
             </td>
             <td>{link.url}</td>
             <td>{link.clicks}</td>
+            <td>{link.createdAt}</td>
           </tr>
         ))}
       </tbody>
