@@ -3,7 +3,7 @@ product: "url-shortener"
 owner: lean-startup-agent
 status: active
 updated: 2026-06-18
-goal_version: 8aece70d4f7e
+goal_version: 461844dba515
 gtm_route: toy
 engine: N/A
 maturity_stage: wizard-sandbox
@@ -37,21 +37,23 @@ User can see the links they created and how many times each was clicked.
 
 ## 해야할 일
 
-**공유 계약 (Part 1 — 데이터 모델 & 스토리지 인터페이스)**
-`src/app/models.py` 생성. `Link` dataclass 정의: `short_code: str`, `original_url: str`, `click_count: int`, `created_at: str`. 이 타입이 모든 레이어의 공유 계약이 된다.
-`src/app/storage.py` 생성. 함수 시그니처 정의: `create_link(original_url: str) -> Link`, `get_link(short_code: str) -> Link | None`, `increment_click(short_code: str) -> None`, `list_links() -> list[Link]`. 내부는 표준 라이브러리 `sqlite3`로 구현하며, DB 파일 경로는 환경변수 `DB_PATH`(기본 `links.db`)에서 읽는다. `short_code`는 `secrets.token_urlsafe(6)`으로 생성. **(serves: A-1)**
+**파트 1 — 공유 데이터 계약 (`src/app/models.py`)**
+`ShortLink` 데이터클래스를 정의한다: `code: str`, `original_url: str`, `created_at: str`, `click_count: int`. 이 타입이 스토리지·리다이렉트·목록 뷰 간의 유일한 교환 단위다. [A-1]
 
-**Part 2 — HTTP 핸들러**
-`src/app/handlers.py` 생성. `http.server.BaseHTTPRequestHandler`를 상속한 `AppHandler` 클래스 하나에 두 가지 경로를 처리한다.
-- `GET /<short_code>` : `get_link`로 조회 → 없으면 404, 있으면 `increment_click` 호출 후 `302 Location: original_url` 리다이렉트.
-- `GET /` (또는 `GET /links`) : `list_links`를 호출해 전체 링크 목록을 HTML 테이블로 렌더링(`short_code`, `original_url`, `click_count`, `created_at` 컬럼). 순수 문자열 f-string으로 HTML 생성, 외부 템플릿 라이브러리 사용 금지.
-- `POST /links` : `application/x-www-form-urlencoded` body에서 `url` 파라미터를 읽어 `create_link` 호출 → 생성 후 `/`로 `303 See Other` 리다이렉트. **(serves: A-1)**
+**파트 2 — 스토리지 레이어 (`src/app/store.py`)**
+`sqlite3`(표준 라이브러리)를 백엔드로 하는 `LinkStore` 클래스를 구현한다. 공개 인터페이스: `add(link: ShortLink) -> None`, `get(code: str) -> ShortLink | None`, `increment_click(code: str) -> None`, `list_all() -> list[ShortLink]`. `increment_click`은 `UPDATE … SET click_count = click_count + 1`로 DB 레벨 원자성을 보장한다. [A-1]
 
-**Part 3 — 서버 진입점**
-`src/app/server.py` 생성. `http.server.HTTPServer`를 `AppHandler`와 함께 인스턴스화하고 `serve_forever()`를 실행. 포트는 환경변수 `PORT`(기본 `8000`)에서 읽는다. DB 초기화(`CREATE TABLE IF NOT EXISTS`)도 이 시작 시점에 수행한다. **(serves: A-1)**
+**파트 3 — 리다이렉트 핸들러 (`src/app/handlers.py` 내 `redirect_handler`)**
+`GET /<code>` 요청을 받으면 `store.get(code)`로 원본 URL을 조회하고, 존재하면 `store.increment_click(code)` 호출 후 HTTP 302로 응답한다. 코드가 없으면 404를 반환한다. 클릭 카운트 증가의 실행 지점이다. [A-1]
 
-**Part 4 — 표준 라이브러리 전용 제약 검증 (constraint check)**
-`src/app/` 내 모든 `.py` 파일을 `ast` 모듈로 파싱해 `Import` / `ImportFrom` 노드를 수집하고, 각 최상위 모듈명을 `sys.stdlib_module_names`(Python 3.10+) 또는 `sys.builtin_module_names` + 수동 stdlib 목록과 대조하는 정적 분석 스크립트를 `tools/check_stdlib_only.py`에 작성. 서드파티 모듈이 발견되면 비정상 종료(exit code 1)하고 위반 모듈명을 출력한다. 이 스크립트는 코딩 에이전트가 오라클로 실행할 수 있어야 한다. **(serves: stdlib-only objective constraint)**
+**파트 4 — 목록 뷰 핸들러 (`src/app/handlers.py` 내 `list_handler`)**
+`GET /` 또는 `GET /links` 요청을 받으면 `store.list_all()`을 호출해 HTML 테이블을 렌더링한다. 컬럼: 단축 코드(클릭 가능한 링크), 원본 URL, 생성 시각, 클릭 횟수. 표준 라이브러리 문자열 포매팅으로만 HTML을 생성한다. [A-1]
+
+**파트 5 — HTTP 서버 진입점 (`src/app/server.py`)**
+`http.server.BaseHTTPRequestHandler`를 상속한 `AppHandler`를 정의하고, URL 패턴에 따라 파트 3·4의 핸들러로 라우팅한다. `LinkStore` 인스턴스를 생성해 두 핸들러에 주입한다. `__main__` 블록에서 `HTTPServer`를 실행한다.
+
+**파트 6 — 표준 라이브러리 제약 검증 (`src/app/check_imports.py`)**
+`ast` 모듈로 `src/app/` 내 모든 `.py` 파일을 정적 분석해 `import` 및 `from … import` 구문을 수집한다. 수집된 모듈명 각각에 대해 `sys.stdlib_module_names`(Python 3.10+) 또는 동등한 기준으로 표준 라이브러리 여부를 판정하고, 외부 패키지가 하나라도 발견되면 비-0 종료 코드로 실패한다. 이 검사는 동작 테스트와 독립적으로 실행되는 정적 오라클이다. [A-1 제약]
 
 ## 수용기준 힌트 (성공의 모습)
 
