@@ -2,20 +2,14 @@
 product: "url-shortener"
 owner: lean-startup-agent
 status: active
-updated: 2026-06-16
-goal_version: a4f28b475792
+updated: 2026-06-18
+goal_version: dd242c49c44c
+gtm_route: toy
+engine: N/A
+maturity_stage: wizard-sandbox
 acceptance:
   - id: A-1
-    hint: "단축 후 결과가 full URL(origin + '/' + code)로 표시 — 코드 단독 아님 (ShortenForm 렌더 테스트로 확인)"
-    high_impact: true
-  - id: A-2
-    hint: "결과 full URL 이 클릭 가능한 <a href> 링크 + '복사' 버튼(navigator.clipboard.writeText(fullUrl)) 제공 (테스트)"
-    high_impact: true
-  - id: A-3
-    hint: "기존 동작·테스트(shorten/redirect/stats/store) 회귀 0 + 새 ShortenForm 단위 테스트 green"
-    high_impact: false
-  - id: A-4
-    hint: "pnpm run lint(eslint+prettier) + pnpm run typecheck(tsc) 무오류 — unused/any/포맷 잔재 0"
+    hint: "A list/table view shows created short links with a per-link click count that increments on redirect.\n"
     high_impact: false
   - id: PKG-HEALTH
     hint: "clean env 에서 프로젝트 표준 빌드+테스트 명령이 우회 없이 통과하고 패키지가 정상 빌드·실행된다 (python: `make test` 또는 `uv run pytest` — PYTHONPATH 우회 금지; node: package.json `packageManager` 기준 PM 으로 lockfile clean install+build+test, 예 `pnpm i --frozen-lockfile && pnpm build && pnpm test` 또는 `npm ci && npm run build && npm test`). 패키지명·레이아웃이 제품과 정합한다 — pyproject `name`·`packages`(python) 또는 package.json `name`(node)이 제품명이고, 템플릿 잔재(`python-service-template`·`src/app` 패키지·`nextjs-service-template` 등)가 남지 않는다."
@@ -28,29 +22,52 @@ acceptance:
 
 ## 목표 (1줄)
 
-url-shortener 단축 결과 UX 개선 — 코드만이 아니라 복사·클릭 가능한 full 단축 URL 표시
+User can see the links they created and how many times each was clicked.
+
+## 빌드 맥락 (lean WHY)
+
+- 배경: URL shortener is live on Vercel. D1 (shorten) and D2 (copy) are verified (PR #23, eval-url-shortener-a4f28b475792, product_verdict=pass). D3 adds history and click-count visibility — the remaining gap before the north-star objective is satisfied.
+- 검증 가정(leap-of-faith): Displaying created links + click counts on the same page the user lands on is sufficient for non-technical daily use without requiring auth or accounts.
+- 범위 밖 (이번 cycle 안 만듦):
+  - User accounts / auth
+  - Custom vanity domains
+  - Analytics dashboards beyond a per-link click count
+  - D1 shorten — already met (do not re-implement)
+  - D2 copy button — already met (do not re-implement)
 
 ## 해야할 일
 
-기존 url-shortener(main) 의 ShortenForm 결과 표시 개선. 백엔드·저장소 변경 없음(UI 한정).
-- ShortenForm 이 결과를 'Short code: X' 가 아니라 full 단축 URL(window.location.origin + '/' + code)로 표시
-- 그 URL 을 클릭 가능한 <a> 링크 + '복사' 버튼(navigator.clipboard.writeText(fullUrl), 복사됨 피드백)
-- 기존 동작(POST /api/shorten, GET /[code] redirect, stats) 회귀 0
-- 표시·복사 로직 단위 테스트(vitest + RTL) 추가, 기존 ShortenForm 테스트 갱신
-- eslint + prettier + tsc clean (lint·typecheck 게이트 통과)
-- (재검증) SCR-524 tsbuildinfo fix 후 완주
-- (재검증) SCR-525 oracle fix 후 완주
-- (재검증 v2) baseline 청소 후 ShortenForm full-URL+copy 완주
-- (재검증 v3) format-normalize 후 ShortenForm full-URL+copy 완주
+**파트 1 — 공유 계약: 데이터 모델 (`src/app/models.py`)**
+`ShortLink` dataclass를 정의한다: `short_code: str`, `original_url: str`, `created_at: str` (ISO-8601), `click_count: int`. 이 타입이 모든 하위 파트의 공통 단위이다. [A-1]
+
+**파트 2 — 저장소 계약 및 구현 (`src/app/store.py`)**
+파트 1의 `ShortLink`를 임포트한다. `threading.Lock`으로 보호되는 인메모리 딕셔너리(`dict[str, ShortLink]`)를 상태로 갖는다. 외부로 노출하는 함수 시그니처:
+- `create_link(original_url: str) -> ShortLink` — 고유한 `short_code`(6자 `secrets.token_urlsafe(4)`)를 생성하고 click_count=0으로 저장 후 반환.
+- `get_link(short_code: str) -> ShortLink | None` — 코드로 조회.
+- `increment_click(short_code: str) -> None` — click_count를 1 증가 (lock 내에서).
+- `list_links() -> list[ShortLink]` — 전체 링크를 `created_at` 내림차순으로 반환. [A-1]
+
+**파트 3 — HTTP 라우팅 및 핸들러 (`src/app/server.py`)**
+표준 라이브러리 `http.server.BaseHTTPRequestHandler`를 서브클래스로 구현한다. 처리 경로:
+- `POST /links` — 폼 바디에서 `original_url`을 파싱하고 `store.create_link()`를 호출한 뒤 목록 페이지로 `303 See Other` 리디렉트.
+- `GET /<short_code>` — `store.get_link()`로 조회 → 없으면 404, 있으면 `store.increment_click()`을 호출한 뒤 `301` 또는 `302`로 원래 URL로 리디렉트. [A-1]
+- `GET /` — `store.list_links()`를 호출하고 `views.render_index()`(파트 4)로 생성한 HTML을 반환. [A-1]
+
+**파트 4 — HTML 렌더링 (`src/app/views.py`)**
+파트 1의 `ShortLink`를 임포트한다. `render_index(links: list[ShortLink]) -> str` 함수 하나를 노출한다. 반환값은 완전한 HTML 문자열로, 링크 생성 폼(original_url 입력 + 제출 버튼)과 `short_code`, `original_url`, `click_count`, `created_at` 컬럼을 가진 `<table>`을 포함한다. f-string 또는 `str.format`만 사용하며 외부 템플릿 엔진 없이 작성한다. [A-1]
+
+**파트 5 — 진입점 (`src/app/main.py`)**
+`http.server.HTTPServer`를 `(HOST, PORT)`로 생성하고 파트 3의 핸들러 클래스를 전달한 뒤 `serve_forever()`를 호출한다. HOST/PORT는 모듈 상단 상수로 명시한다. 의존 순서: `models` → `store` → `views` → `server` → `main`.
+
+**파트 6 — 구조적 제약 검증 (표준 라이브러리 전용)**
+`src/` 하위 모든 `.py` 파일에 대해 표준 라이브러리 `ast` 모듈로 임포트 노드(`ast.Import`, `ast.ImportFrom`)를 순회하고, `sys.stdlib_module_names`(Python 3.10+) 또는 수동 화이트리스트와 대조하여 서드파티 패키지가 없음을 정적으로 검증하는 스크립트를 `src/check_stdlib_only.py`에 작성한다. 이 스크립트는 위반 발견 시 비-0 종료 코드와 위반 모듈명을 출력해야 한다. 코딩 플래너가 이 스크립트를 실행하는 오라클 테스트를 작성한다.
 
 ## 수용기준 힌트 (성공의 모습)
 
 frontmatter `acceptance` 와 1:1. evaluator 가 게이트에서 판단형 기준(P1)으로 도출.
 
-- A-1: 단축 후 결과가 full URL(origin + '/' + code)로 표시 — 코드 단독 아님 (ShortenForm 렌더 테스트로 확인)
-- A-2: 결과 full URL 이 클릭 가능한 <a href> 링크 + '복사' 버튼(navigator.clipboard.writeText(fullUrl)) 제공 (테스트)
-- A-3: 기존 동작·테스트(shorten/redirect/stats/store) 회귀 0 + 새 ShortenForm 단위 테스트 green
-- A-4: pnpm run lint(eslint+prettier) + pnpm run typecheck(tsc) 무오류 — unused/any/포맷 잔재 0
+- A-1: A list/table view shows created short links with a per-link click count that increments on redirect.
+
 - PKG-HEALTH: clean env 에서 프로젝트 표준 빌드+테스트 명령이 우회 없이 통과하고 패키지가 정상 빌드·실행된다 (python: `make test` 또는 `uv run pytest` — PYTHONPATH 우회 금지; node: package.json `packageManager` 기준 PM 으로 lockfile clean install+build+test, 예 `pnpm i --frozen-lockfile && pnpm build && pnpm test` 또는 `npm ci && npm run build && npm test`). 패키지명·레이아웃이 제품과 정합한다 — pyproject `name`·`packages`(python) 또는 package.json `name`(node)이 제품명이고, 템플릿 잔재(`python-service-template`·`src/app` 패키지·`nextjs-service-template` 등)가 남지 않는다.
 
 ## 코딩 가이드 (planner)
