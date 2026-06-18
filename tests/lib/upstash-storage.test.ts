@@ -110,8 +110,18 @@ describe('UpstashStorage', () => {
 
     expect(redisMethods.keys).toHaveBeenCalledWith('url:*');
     expect(records).toEqual([
-      { code: 'new', url: 'https://example.com/new', clicks: 5, createdAt: '2024-01-02T00:00:00.000Z' },
-      { code: 'old', url: 'https://example.com/old', clicks: 2, createdAt: '2024-01-01T00:00:00.000Z' },
+      {
+        code: 'new',
+        url: 'https://example.com/new',
+        clicks: 5,
+        createdAt: '2024-01-02T00:00:00.000Z',
+      },
+      {
+        code: 'old',
+        url: 'https://example.com/old',
+        clicks: 2,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
     ]);
   });
 });
