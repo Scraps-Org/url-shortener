@@ -3,7 +3,7 @@ product: "url-shortener"
 owner: lean-startup-agent
 status: active
 updated: 2026-06-18
-goal_version: 9251afc6ceef
+goal_version: 33d318f296a7
 gtm_route: toy
 engine: N/A
 maturity_stage: wizard-sandbox
@@ -37,33 +37,39 @@ User can see the links they created and how many times each was clicked.
 
 ## 해야할 일
 
-**파트 1 — 공유 데이터 계약 (`src/app/models.py`)** · A-1
+**파트 1 – 공유 계약: 데이터 모델 & DB 스키마** (`src/app/models.py`) [A-1]
 
-`ShortLink` dataclass를 정의한다: 필드는 `slug: str`, `original_url: str`, `created_at: str` (ISO-8601), `click_count: int`. 이 타입이 저장소·뷰·핸들러 전체의 단일 데이터 단위가 된다. 별도 의존성 없이 `dataclasses` (표준 라이브러리)만 사용한다.
+`Link` dataclass를 정의한다: 필드는 `short_code: str`, `original_url: str`, `created_at: str`, `click_count: int`. 아울러 `links` 테이블 DDL 문자열 상수 `CREATE_TABLE_SQL`을 export한다 (`short_code TEXT PRIMARY KEY, original_url TEXT NOT NULL, created_at TEXT NOT NULL, click_count INTEGER NOT NULL DEFAULT 0`). 다른 모든 모듈은 이 파일에서 `Link`와 `CREATE_TABLE_SQL`을 import하며, 이 파일 자체는 표준 라이브러리 `dataclasses`만 사용한다.
 
-**파트 2 — 저장소 계층 (`src/app/storage.py`)** · A-1
+---
 
-`sqlite3` (표준 라이브러리)로 `links.db`를 관리한다. 외부에 노출하는 함수 시그니처는 다음과 같다.
-- `init_db(path: str) -> None` — 테이블이 없으면 `short_links(slug TEXT PK, original_url TEXT, created_at TEXT, click_count INTEGER DEFAULT 0)` 생성.
-- `create_link(slug: str, original_url: str) -> ShortLink`
-- `get_all_links() -> list[ShortLink]` — `created_at DESC` 정렬.
-- `get_link(slug: str) -> ShortLink | None`
-- `increment_click(slug: str) -> None` — `click_count += 1` 원자 업데이트.
+**파트 2 – 저장소 계층** (`src/app/store.py`) [A-1]
 
-모든 함수는 `ShortLink` (파트 1)를 반환/소비하므로 다른 파트는 이 인터페이스에만 의존한다.
+`sqlite3`, `datetime`, `models` 만 import한다. 네 함수의 시그니처를 고정한다:
+- `init_db(db_path: str) -> sqlite3.Connection` — DB를 열거나 생성하고 `CREATE_TABLE_SQL`을 실행한다.
+- `create_link(conn, short_code: str, original_url: str) -> Link` — 행을 삽입하고 `Link`를 반환한다. `created_at`은 `datetime.utcnow().isoformat()`을 사용하며, `short_code` 중복 시 `ValueError`를 raise한다.
+- `increment_click(conn, short_code: str) -> None` — `UPDATE links SET click_count = click_count + 1 WHERE short_code = ?` 실행; 해당 코드가 없으면 `KeyError`를 raise한다.
+- `list_links(conn) -> list[Link]` — `SELECT * FROM links ORDER BY created_at DESC`로 조회해 `Link` 인스턴스 목록을 반환한다.
 
-**파트 3 — HTML 렌더링 (`src/app/views.py`)** · A-1
+---
 
-`render_link_table(links: list[ShortLink]) -> str` 단일 함수를 둔다. `list[ShortLink]`를 받아 슬러그·원본 URL·클릭 수·생성일 컬럼을 가진 HTML `<table>`을 문자열로 반환한다. 표준 라이브러리 `html` 모듈로 사용자 입력을 이스케이프하여 XSS를 방지한다. HTTP 응답 조립은 이 함수를 호출하는 핸들러(파트 4)에 맡긴다.
+**파트 3 – HTTP 핸들러** (`src/app/handlers.py`) [A-1]
 
-**파트 4 — HTTP 핸들러 및 서버 진입점 (`src/app/server.py`)** · A-1
+`http.server.BaseHTTPRequestHandler`를 상속한다. `GET /` → `_handle_list`, `GET /<short_code>` → `_handle_redirect`로 라우팅한다. `conn`은 서버 기동 전 클래스 변수 또는 팩토리 클로저로 주입한다.
+- `_handle_list`: `list_links(conn)` 결과를 HTML `<table>`로 렌더링한다. 컬럼은 *Short Link* (`<a href="/<short_code>">`), *Original URL*, *Created At*, *Clicks* 순이다. 상태 코드 200과 `Content-Type: text/html`을 반환한다.
+- `_handle_redirect`: `increment_click(conn, short_code)` 호출 후 `301 Location: <original_url>`로 응답한다. `short_code` 미존재 시 404를 반환한다.
 
-`http.server.BaseHTTPRequestHandler`를 상속해 두 라우트를 처리한다.
+---
 
-- `GET /` — `get_all_links()`로 전체 링크를 조회하고 `render_link_table()`로 응답 (리스트·클릭 수 표시).
-- `GET /<slug>` — `get_link(slug)` 조회 → 존재하면 `increment_click(slug)` 호출 후 `302` 리다이렉트; 없으면 `404`.
+**파트 4 – 서버 진입점** (`src/app/server.py`) [A-1]
 
-`__main__` 블록에서 `init_db()`를 호출한 뒤 `http.server.HTTPServer`로 기동한다. 포트는 환경변수 `PORT`(기본 8000)에서 읽는다.
+`http.server.HTTPServer`, `os`, `store`, `handlers`만 사용한다. `DB_PATH`와 `PORT`를 `os.environ`에서 읽되 기본값을 제공한다. `init_db(DB_PATH)`로 연결을 획득하고, 핸들러 클래스에 `conn`을 주입한 뒤 `serve_forever()`를 호출한다. 이 파일이 유일한 `__main__` 진입점이다.
+
+---
+
+**파트 5 – 제약 검증: 표준 라이브러리 한정 임포트 정적 분석** (구조적 제약) [A-1]
+
+`src/app/` 하위 모든 `.py` 파일을 대상으로 `ast` 모듈로 구문 트리를 순회해 `import` 및 `from … import` 구문에서 최상위 모듈명을 수집하는 독립 검사 스크립트를 작성한다. 수집된 모듈명이 `sys.stdlib_module_names` (Python 3.10+) 또는 명시적 허용 목록(하위 버전 대응) 외의 이름을 포함할 경우 해당 파일명·모듈명을 출력하고 비정상 종료(exit code 1)한다. 이 스크립트의 출력이 평가자의 기계적 판단 근거가 된다.
 
 ## 수용기준 힌트 (성공의 모습)
 
