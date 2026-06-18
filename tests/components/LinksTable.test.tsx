@@ -5,8 +5,8 @@ import { LinksTable } from '~/components/LinksTable';
 describe('LinksTable', () => {
   it('renders a table with links data', () => {
     const links = [
-      { code: 'abc123', url: 'https://example.com', clicks: 5 },
-      { code: 'def456', url: 'https://other.org', clicks: 0 },
+      { code: 'abc123', url: 'https://example.com', clicks: 5, createdAt: '2026-01-02T03:04:05.000Z' },
+      { code: 'def456', url: 'https://other.org', clicks: 0, createdAt: '2026-01-01T01:02:03.000Z' },
     ];
 
     render(<LinksTable links={links} />);
@@ -20,5 +20,11 @@ describe('LinksTable', () => {
 
     // Check that the click count is rendered
     expect(screen.getByText('5')).toBeInTheDocument();
+
+    // Check that the created at header is present
+    expect(screen.getByText('Created At')).toBeInTheDocument();
+
+    // Check that the created at timestamp is rendered
+    expect(screen.getByText('2026-01-02T03:04:05.000Z')).toBeInTheDocument();
   });
 });
