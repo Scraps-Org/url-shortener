@@ -13,10 +13,20 @@ describe('MemoryStorage.list()', () => {
     expect(list).toHaveLength(2);
 
     const abc = list.find((r) => r.code === 'abc');
-    expect(abc).toEqual({ code: 'abc', url: 'https://example.com', clicks: 1, createdAt: expect.any(String) });
+    expect(abc).toEqual({
+      code: 'abc',
+      url: 'https://example.com',
+      clicks: 1,
+      createdAt: expect.any(String),
+    });
 
     const def = list.find((r) => r.code === 'def');
-    expect(def).toEqual({ code: 'def', url: 'https://example.org', clicks: 0, createdAt: expect.any(String) });
+    expect(def).toEqual({
+      code: 'def',
+      url: 'https://example.org',
+      clicks: 0,
+      createdAt: expect.any(String),
+    });
   });
 });
 

@@ -5,8 +5,18 @@ import { LinksTable } from '~/components/LinksTable';
 describe('LinksTable', () => {
   it('renders a table with links data', () => {
     const links = [
-      { code: 'abc123', url: 'https://example.com', clicks: 5, createdAt: '2026-01-02T03:04:05.000Z' },
-      { code: 'def456', url: 'https://other.org', clicks: 0, createdAt: '2026-01-01T01:02:03.000Z' },
+      {
+        code: 'abc123',
+        url: 'https://example.com',
+        clicks: 5,
+        createdAt: '2026-01-02T03:04:05.000Z',
+      },
+      {
+        code: 'def456',
+        url: 'https://other.org',
+        clicks: 0,
+        createdAt: '2026-01-01T01:02:03.000Z',
+      },
     ];
 
     render(<LinksTable links={links} />);

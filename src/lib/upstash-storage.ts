@@ -59,6 +59,8 @@ export class UpstashStorage implements Storage {
       }
     }
 
-    return records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return records.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
   }
 }
