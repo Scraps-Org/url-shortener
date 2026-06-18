@@ -7,6 +7,7 @@ const redisMethods = {
   get: vi.fn(),
   exists: vi.fn(),
   incr: vi.fn(),
+  keys: vi.fn(),
 };
 
 vi.mock('@upstash/redis', () => ({
@@ -22,6 +23,7 @@ describe('UpstashStorage', () => {
     redisMethods.get.mockReset();
     redisMethods.exists.mockReset();
     redisMethods.incr.mockReset();
+    redisMethods.keys.mockReset();
     vi.mocked(Redis).mockClear();
   });
 
@@ -30,11 +32,12 @@ describe('UpstashStorage', () => {
     expect(Redis).toHaveBeenCalledWith({ url: 'https://x.upstash.io', token: 'tok' });
   });
 
-  it('save() sets url:<code> and clicks:<code>=0', async () => {
+  it('save() sets url:<code>, clicks:<code>=0, and created:<code>', async () => {
     const storage = new UpstashStorage({ url: 'u', token: 't' });
     await storage.save('abc', 'https://example.com');
     expect(redisMethods.set).toHaveBeenCalledWith('url:abc', 'https://example.com');
     expect(redisMethods.set).toHaveBeenCalledWith('clicks:abc', 0);
+    expect(redisMethods.set).toHaveBeenCalledWith('created:abc', expect.any(String));
   });
 
   it('get() returns the url:<code> value', async () => {

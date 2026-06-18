@@ -9,6 +9,7 @@ import type { Storage, LinkRecord } from './storage';
  * Key scheme:
  *   url:<code>    — the target URL (string)
  *   clicks:<code> — the click count (number)
+ *   created:<code> — the creation timestamp (string)
  */
 export class UpstashStorage implements Storage {
   private redis: Redis;
@@ -20,6 +21,7 @@ export class UpstashStorage implements Storage {
   async save(code: string, url: string): Promise<void> {
     await this.redis.set(`url:${code}`, url);
     await this.redis.set(`clicks:${code}`, 0);
+    await this.redis.set(`created:${code}`, new Date().toISOString());
   }
 
   async get(code: string): Promise<string | undefined> {
@@ -52,10 +54,11 @@ export class UpstashStorage implements Storage {
       const url = await this.redis.get<string>(key);
       if (url) {
         const clicks = await this.redis.get<number>(`clicks:${code}`);
-        records.push({ code, url, clicks: clicks ?? 0 });
+        const createdAt = await this.redis.get<string>(`created:${code}`);
+        records.push({ code, url, clicks: clicks ?? 0, createdAt: createdAt ?? '' });
       }
     }
 
-    return records;
+    return records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 }
