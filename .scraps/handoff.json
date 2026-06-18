@@ -1,45 +1,39 @@
 {
   "artifact_refs": {
     "merged_task_shas": [
-      "ad0a40e98f0420a2d4b6dfc7b7c2c7301eff9c65",
-      "a7368d8d30578834d92450e660967824083bcb08",
-      "7bf36927fb86c6f64bbc0f26d38d27409ece0cd5"
+      "4084f9a99fe4d96606fa6f6fd16018802007d2ce",
+      "2085f6aac11972d55969e22d2059d1988701934a"
     ]
   },
-  "base_ref": "c976aa616ab5937c7a192ea9da7731639a12c812",
-  "code_integration_sha": "15ff8a71627d586daf8e69a4ca9e203b5626ea7e",
+  "base_ref": "61931243540bbe9d89997bc96ff077fc7ec693a4",
+  "code_integration_sha": "0d06a40fe2251e36c1be2c77cfe751b8a47f5e6b",
   "contract_version": "1.0",
   "correlation_id": "eval-url-shortener-9d68a7a31f50",
-  "dispatch_id": "eval-url-shortener-9d68a7a31f50-a2",
+  "dispatch_id": "eval-url-shortener-9d68a7a31f50-a6",
   "engine_status": "engine_completed",
-  "generated_at": "2026-06-18T15:18:28.185056Z",
+  "generated_at": "2026-06-18T16:52:27.616037Z",
   "goal_doc_sha": "9d68a7a31f50",
   "goal_id": "url-shortener-9d68a7a31f50",
   "integration_branch": "scraps/goal/url-shortener-9d68a7a31f50",
   "known_gaps": [],
   "metrics_ref": {
     "path": "metrics.json",
-    "sha256": "1cecd89cfe0001c3ac70b362c64a27093868a95a76b3c13b5ce1818e12e8c4da"
+    "sha256": "f849d98a8c1b2f76b5e0339da6b81b79dbcfdcce7cb74abd5c0cdf681a12e075"
   },
   "owner_verify_result": {
     "checks": [
       {
-        "name": "storage-list-links",
+        "name": "created-at-storage",
         "status": "green",
         "tier": "extended"
       },
       {
-        "name": "links-dashboard-view",
-        "status": "green",
-        "tier": "extended"
-      },
-      {
-        "name": "home-links-nav",
+        "name": "created-at-column",
         "status": "green",
         "tier": "extended"
       }
     ],
-    "merged_task_count": 3,
+    "merged_task_count": 2,
     "submit_gate_passed": true,
     "tier": "extended"
   },
@@ -75,10 +69,20 @@
           "command": "pnpm exec vitest run tests/lib/list.test.ts",
           "exit_code": 0,
           "status": "passed"
+        },
+        {
+          "command": "pnpm exec vitest run tests/lib/upstash-storage.test.ts",
+          "exit_code": 0,
+          "status": "passed"
+        },
+        {
+          "command": "pnpm build",
+          "exit_code": 0,
+          "status": "passed"
         }
       ],
-      "log_ref": "event:task.verification_evidence:storage-list-links",
-      "name": "storage-list-links",
+      "log_ref": "event:task.verification_evidence:created-at-storage",
+      "name": "created-at-storage",
       "status": "green",
       "tier": "extended"
     },
@@ -93,28 +97,15 @@
           "command": "pnpm exec vitest run tests/components/LinksTable.test.tsx",
           "exit_code": 0,
           "status": "passed"
-        }
-      ],
-      "log_ref": "event:task.verification_evidence:links-dashboard-view",
-      "name": "links-dashboard-view",
-      "status": "green",
-      "tier": "extended"
-    },
-    {
-      "checks": [
-        {
-          "command": "pnpm install --frozen-lockfile",
-          "exit_code": 0,
-          "status": "passed"
         },
         {
-          "command": "pnpm exec vitest run tests/components/home-nav.test.tsx",
+          "command": "pnpm build",
           "exit_code": 0,
           "status": "passed"
         }
       ],
-      "log_ref": "event:task.verification_evidence:home-links-nav",
-      "name": "home-links-nav",
+      "log_ref": "event:task.verification_evidence:created-at-column",
+      "name": "created-at-column",
       "status": "green",
       "tier": "extended"
     }
