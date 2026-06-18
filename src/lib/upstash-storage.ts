@@ -1,6 +1,6 @@
 import { Redis } from '@upstash/redis';
 
-import type { Storage } from './storage';
+import type { LinkRecord, Storage } from './storage';
 
 /**
  * Serverless, HTTP-based persistent storage backed by Upstash Redis.
@@ -20,6 +20,7 @@ export class UpstashStorage implements Storage {
   async save(code: string, url: string): Promise<void> {
     await this.redis.set(`url:${code}`, url);
     await this.redis.set(`clicks:${code}`, 0);
+    await this.redis.set(`created:${code}`, new Date().toISOString());
   }
 
   async get(code: string): Promise<string | undefined> {
@@ -41,5 +42,20 @@ export class UpstashStorage implements Storage {
   async getClicks(code: string): Promise<number | undefined> {
     const clicks = await this.redis.get<number>(`clicks:${code}`);
     return clicks ?? undefined;
+  }
+
+  async list(): Promise<LinkRecord[]> {
+    const keys = await this.redis.keys('url:*');
+    const records = await Promise.all(
+      keys.map(async (key) => {
+        const code = key.slice('url:'.length);
+        const url = (await this.redis.get<string>(`url:${code}`)) ?? '';
+        const clicks = (await this.redis.get<number>(`clicks:${code}`)) ?? 0;
+        const createdAt = (await this.redis.get<string>(`created:${code}`)) ?? '';
+        return { code, url, clicks, createdAt: String(createdAt) };
+      }),
+    );
+
+    return records.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 }

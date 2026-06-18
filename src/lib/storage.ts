@@ -1,18 +1,26 @@
 import { UpstashStorage } from './upstash-storage';
 
+export interface LinkRecord {
+  code: string;
+  url: string;
+  clicks: number;
+  createdAt: string;
+}
+
 export interface Storage {
   save(code: string, url: string): Promise<void>;
   get(code: string): Promise<string | undefined>;
   has(code: string): Promise<boolean>;
   incrementClicks(code: string): Promise<number | undefined>;
   getClicks(code: string): Promise<number | undefined>;
+  list(): Promise<LinkRecord[]>;
 }
 
 export class MemoryStorage implements Storage {
-  private store = new Map<string, { url: string; clicks: number }>();
+  private store = new Map<string, { url: string; clicks: number; createdAt: string }>();
 
   async save(code: string, url: string): Promise<void> {
-    this.store.set(code, { url, clicks: 0 });
+    this.store.set(code, { url, clicks: 0, createdAt: new Date().toISOString() });
   }
 
   async get(code: string): Promise<string | undefined> {
@@ -34,6 +42,12 @@ export class MemoryStorage implements Storage {
 
   async getClicks(code: string): Promise<number | undefined> {
     return this.store.get(code)?.clicks;
+  }
+
+  async list(): Promise<LinkRecord[]> {
+    return Array.from(this.store.entries())
+      .map(([code, { url, clicks, createdAt }]) => ({ code, url, clicks, createdAt }))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 }
 
