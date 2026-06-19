@@ -46,9 +46,7 @@ describe('UpstashStorage.list', () => {
     redisMethods.get.mockResolvedValueOnce('https://example.com').mockResolvedValueOnce(5);
 
     const storage = new UpstashStorage({ url: 'u', token: 't' });
-    expect(await storage.list()).toEqual([
-      { code: 'abc', url: 'https://example.com', clicks: 5 },
-    ]);
+    expect(await storage.list()).toEqual([{ code: 'abc', url: 'https://example.com', clicks: 5 }]);
     expect(redisMethods.keys).toHaveBeenCalledWith('url:*');
   });
 });

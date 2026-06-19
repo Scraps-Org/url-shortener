@@ -29,7 +29,7 @@ describe('LinksList', () => {
     render(<LinksList />);
 
     await screen.findByText('abc123');
-    
+
     expect(screen.getByText('https://example.com')).toBeInTheDocument();
     expect(screen.getByText('4')).toBeInTheDocument();
   });
