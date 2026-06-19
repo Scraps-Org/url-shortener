@@ -1,6 +1,6 @@
 import { Redis } from '@upstash/redis';
 
-import type { Storage } from './storage';
+import type { LinkRecord, Storage } from './storage';
 
 /**
  * Serverless, HTTP-based persistent storage backed by Upstash Redis.
@@ -41,5 +41,19 @@ export class UpstashStorage implements Storage {
   async getClicks(code: string): Promise<number | undefined> {
     const clicks = await this.redis.get<number>(`clicks:${code}`);
     return clicks ?? undefined;
+  }
+
+  async list(): Promise<LinkRecord[]> {
+    const keys = await this.redis.keys('url:*');
+    const records: LinkRecord[] = [];
+    for (const key of keys) {
+      const code = key.slice('url:'.length);
+      const url = await this.redis.get<string>(key);
+      const clicks = (await this.redis.get<number>(`clicks:${code}`)) ?? 0;
+      if (url !== null) {
+        records.push({ code, url, clicks });
+      }
+    }
+    return records;
   }
 }
