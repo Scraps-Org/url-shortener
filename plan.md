@@ -2,8 +2,8 @@
 product: "url-shortener"
 owner: lean-startup-agent
 status: active
-updated: 2026-06-18
-goal_version: dd242c49c44c
+updated: 2026-06-19
+goal_version: 283a8b24047d
 gtm_route: toy
 engine: N/A
 maturity_stage: wizard-sandbox
@@ -37,30 +37,30 @@ User can see the links they created and how many times each was clicked.
 
 ## 해야할 일
 
-**파트 1 — 공유 계약: 데이터 모델 (`src/app/models.py`)**
-`ShortLink` dataclass를 정의한다: `short_code: str`, `original_url: str`, `created_at: str` (ISO-8601), `click_count: int`. 이 타입이 모든 하위 파트의 공통 단위이다. [A-1]
+**Part 1 — 공유 데이터 계약 (`src/app/models.py`)**
+`Link`를 `dataclasses.dataclass`로 정의한다: 필드는 `slug: str`, `original_url: str`, `click_count: int`, `created_at: str`. 이 타입이 스토리지·핸들러 레이어 전체에서 공유되는 단일 계약이다. 직렬화 헬퍼 없이 순수 데이터 홀더만 둔다. (A-1)
 
-**파트 2 — 저장소 계약 및 구현 (`src/app/store.py`)**
-파트 1의 `ShortLink`를 임포트한다. `threading.Lock`으로 보호되는 인메모리 딕셔너리(`dict[str, ShortLink]`)를 상태로 갖는다. 외부로 노출하는 함수 시그니처:
-- `create_link(original_url: str) -> ShortLink` — 고유한 `short_code`(6자 `secrets.token_urlsafe(4)`)를 생성하고 click_count=0으로 저장 후 반환.
-- `get_link(short_code: str) -> ShortLink | None` — 코드로 조회.
-- `increment_click(short_code: str) -> None` — click_count를 1 증가 (lock 내에서).
-- `list_links() -> list[ShortLink]` — 전체 링크를 `created_at` 내림차순으로 반환. [A-1]
+**Part 2 — 스토리지 레이어 (`src/app/store.py`)**
+`sqlite3`(표준 라이브러리)로 단일 파일 DB를 관리한다. `links` 테이블 스키마: `(slug TEXT PRIMARY KEY, original_url TEXT, click_count INTEGER DEFAULT 0, created_at TEXT)`. 공개 인터페이스:
+- `init_db(path: str) -> sqlite3.Connection`
+- `create_link(conn, slug: str, url: str) -> Link`
+- `get_link(conn, slug: str) -> Link | None`
+- `increment_click(conn, slug: str) -> None` — `UPDATE … SET click_count = click_count + 1`
+- `list_links(conn) -> list[Link]` — `ORDER BY created_at DESC`
 
-**파트 3 — HTTP 라우팅 및 핸들러 (`src/app/server.py`)**
-표준 라이브러리 `http.server.BaseHTTPRequestHandler`를 서브클래스로 구현한다. 처리 경로:
-- `POST /links` — 폼 바디에서 `original_url`을 파싱하고 `store.create_link()`를 호출한 뒤 목록 페이지로 `303 See Other` 리디렉트.
-- `GET /<short_code>` — `store.get_link()`로 조회 → 없으면 404, 있으면 `store.increment_click()`을 호출한 뒤 `301` 또는 `302`로 원래 URL로 리디렉트. [A-1]
-- `GET /` — `store.list_links()`를 호출하고 `views.render_index()`(파트 4)로 생성한 HTML을 반환. [A-1]
+커넥션은 호출자가 주입(의존성 역전)하여 테스트·핸들러 모두 재사용 가능하게 한다. (A-1)
 
-**파트 4 — HTML 렌더링 (`src/app/views.py`)**
-파트 1의 `ShortLink`를 임포트한다. `render_index(links: list[ShortLink]) -> str` 함수 하나를 노출한다. 반환값은 완전한 HTML 문자열로, 링크 생성 폼(original_url 입력 + 제출 버튼)과 `short_code`, `original_url`, `click_count`, `created_at` 컬럼을 가진 `<table>`을 포함한다. f-string 또는 `str.format`만 사용하며 외부 템플릿 엔진 없이 작성한다. [A-1]
+**Part 3 — 리다이렉트 핸들러 (`src/app/handlers.py`, `RedirectHandler` 클래스)**
+`http.server.BaseHTTPRequestHandler`를 상속한다. `GET /<slug>` 경로를 처리하며, `get_link` → `increment_click` → HTTP 302 응답 순으로 실행한다. 슬러그가 없으면 404를 반환한다. 리다이렉트 시마다 클릭 수가 증가하는 것이 A-1의 핵심 조건이다. (A-1)
 
-**파트 5 — 진입점 (`src/app/main.py`)**
-`http.server.HTTPServer`를 `(HOST, PORT)`로 생성하고 파트 3의 핸들러 클래스를 전달한 뒤 `serve_forever()`를 호출한다. HOST/PORT는 모듈 상단 상수로 명시한다. 의존 순서: `models` → `store` → `views` → `server` → `main`.
+**Part 4 — 목록 뷰 핸들러 (`src/app/handlers.py`, `ListHandler` 또는 동일 클래스 내 분기)**
+`GET /links` (또는 `/`) 경로에서 `list_links`를 호출하고, `slug` / `original_url` / `click_count` / `created_at` 컬럼을 가진 HTML `<table>`을 표준 라이브러리 문자열 포매팅으로 렌더링하여 반환한다. 외부 템플릿 엔진 사용 금지. (A-1)
 
-**파트 6 — 구조적 제약 검증 (표준 라이브러리 전용)**
-`src/` 하위 모든 `.py` 파일에 대해 표준 라이브러리 `ast` 모듈로 임포트 노드(`ast.Import`, `ast.ImportFrom`)를 순회하고, `sys.stdlib_module_names`(Python 3.10+) 또는 수동 화이트리스트와 대조하여 서드파티 패키지가 없음을 정적으로 검증하는 스크립트를 `src/check_stdlib_only.py`에 작성한다. 이 스크립트는 위반 발견 시 비-0 종료 코드와 위반 모듈명을 출력해야 한다. 코딩 플래너가 이 스크립트를 실행하는 오라클 테스트를 작성한다.
+**Part 5 — 서버 진입점 (`src/app/server.py`)**
+`http.server.HTTPServer`에 위 핸들러를 연결한다. DB 경로와 포트를 환경변수(`DB_PATH`, `PORT`) 또는 `sys.argv`로 받아 `store.init_db`를 먼저 호출한 뒤 서버를 구동한다. 핸들러가 커넥션을 참조할 수 있도록 핸들러 클래스에 `conn`을 클래스 변수로 주입하는 패턴을 사용한다.
+
+**Part 6 — 표준 라이브러리 제약 정적 검사 (제약 검증)**
+`ast` 모듈을 이용해 `src/app/` 내 모든 `.py` 파일의 `import` 및 `from … import` 구문을 순회하고, 최상위 모듈 이름이 `sys.stdlib_module_names`(Python 3.10+) 또는 사전에 열거한 표준 라이브러리 목록에 속하지 않는 외부 패키지가 있으면 목록을 출력하고 오류를 발생시키는 정적 분석 스크립트(`src/app/check_stdlib.py`)를 작성한다. 이 스크립트는 CI에서 동작해야 하며, 외부 의존성이 0임을 기계적으로 증명한다.
 
 ## 수용기준 힌트 (성공의 모습)
 
