@@ -1,33 +1,45 @@
 {
   "artifact_refs": {
     "merged_task_shas": [
-      "2de7ed5f997840d25f08d97bde1ba652b201e29e"
+      "c846dc4d2911c4dd78e86a45c9ad4be0436226fd",
+      "276e54f42139b2c75cccc8c03996239fdd4772c8",
+      "933adc50f74e06a41d842d639219ec804e1aa20a"
     ]
   },
-  "base_ref": "cbf8e25b2216eedc8688ff7b0661451952ef070f",
-  "code_integration_sha": "75a6acbedb46d0d4fc83767dbcd1d548ba1ff1b8",
+  "base_ref": "ba8f3ce8758c5a11bf065d76f71b776c2fbcf584",
+  "code_integration_sha": "267e7024e4487443fdac8627f02e7e83779c35a4",
   "contract_version": "1.0",
-  "correlation_id": "eval-url-shortener-a4f28b475792",
-  "dispatch_id": "eval-url-shortener-a4f28b475792",
+  "correlation_id": "eval-url-shortener-e2b3f7626248",
+  "dispatch_id": "eval-url-shortener-e2b3f7626248-a14",
   "engine_status": "engine_completed",
-  "generated_at": "2026-06-16T02:21:27.083743Z",
-  "goal_doc_sha": "a4f28b475792",
-  "goal_id": "url-shortener-a4f28b475792",
-  "integration_branch": "scraps/goal/url-shortener-a4f28b475792",
+  "generated_at": "2026-06-19T00:22:18.908805Z",
+  "goal_doc_sha": "283a8b24047d",
+  "goal_id": "url-shortener-283a8b24047d",
+  "integration_branch": "scraps/goal/url-shortener-283a8b24047d",
   "known_gaps": [],
   "metrics_ref": {
     "path": "metrics.json",
-    "sha256": "f7d2c21cde59599a822e12965e147a5ff0eb9f90c34ad2f54e24c70966b4eb99"
+    "sha256": "341b0ed7e86c777916dc439e1841c028d32fa0358af9e922dfe6451b79544bab"
   },
   "owner_verify_result": {
     "checks": [
       {
-        "name": "shortenform-full-url-copy",
+        "name": "t1-storage-list",
+        "status": "green",
+        "tier": "extended"
+      },
+      {
+        "name": "t2-links-api",
+        "status": "green",
+        "tier": "extended"
+      },
+      {
+        "name": "t3-links-ui",
         "status": "green",
         "tier": "extended"
       }
     ],
-    "merged_task_count": 1,
+    "merged_task_count": 3,
     "submit_gate_passed": true,
     "tier": "extended"
   },
@@ -35,21 +47,6 @@
   "recorded_acceptance_measurement": [
     {
       "criterion": "A-1",
-      "how_measured": "none",
-      "observed": "not_engine_measurable"
-    },
-    {
-      "criterion": "A-2",
-      "how_measured": "none",
-      "observed": "not_engine_measurable"
-    },
-    {
-      "criterion": "A-3",
-      "how_measured": "none",
-      "observed": "not_engine_measurable"
-    },
-    {
-      "criterion": "A-4",
       "how_measured": "none",
       "observed": "not_engine_measurable"
     },
@@ -75,22 +72,63 @@
           "status": "passed"
         },
         {
-          "command": "pnpm exec vitest run tests/components/ShortenForm.test.tsx",
+          "command": "pnpm exec vitest run tests/lib/list.test.ts",
           "exit_code": 0,
           "status": "passed"
         },
         {
-          "command": "pnpm exec vitest run",
+          "command": "pnpm exec vitest run tests/lib/storage.test.ts tests/lib/upstash-storage.test.ts tests/lib/store.test.ts",
           "exit_code": 0,
           "status": "passed"
         },
         {
-          "command": "pnpm run lint",
+          "command": "pnpm exec tsc --noEmit",
+          "exit_code": 0,
+          "status": "passed"
+        }
+      ],
+      "log_ref": "event:task.verification_evidence:t1-storage-list",
+      "name": "t1-storage-list",
+      "status": "green",
+      "tier": "extended"
+    },
+    {
+      "checks": [
+        {
+          "command": "pnpm install --frozen-lockfile",
           "exit_code": 0,
           "status": "passed"
         },
         {
-          "command": "pnpm run typecheck",
+          "command": "pnpm exec vitest run tests/api/links.test.ts",
+          "exit_code": 0,
+          "status": "passed"
+        },
+        {
+          "command": "pnpm exec tsc --noEmit",
+          "exit_code": 0,
+          "status": "passed"
+        }
+      ],
+      "log_ref": "event:task.verification_evidence:t2-links-api",
+      "name": "t2-links-api",
+      "status": "green",
+      "tier": "extended"
+    },
+    {
+      "checks": [
+        {
+          "command": "pnpm install --frozen-lockfile",
+          "exit_code": 0,
+          "status": "passed"
+        },
+        {
+          "command": "pnpm exec vitest run tests/components/LinksList.test.tsx",
+          "exit_code": 0,
+          "status": "passed"
+        },
+        {
+          "command": "pnpm exec tsc --noEmit",
           "exit_code": 0,
           "status": "passed"
         },
@@ -100,8 +138,8 @@
           "status": "passed"
         }
       ],
-      "log_ref": "event:task.verification_evidence:shortenform-full-url-copy",
-      "name": "shortenform-full-url-copy",
+      "log_ref": "event:task.verification_evidence:t3-links-ui",
+      "name": "t3-links-ui",
       "status": "green",
       "tier": "extended"
     }
