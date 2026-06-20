@@ -1,39 +1,33 @@
 {
   "artifact_refs": {
     "merged_task_shas": [
-      "3e36b4a6390f8510676ec5192170c761be266526",
-      "d5bf4ae501db4bf487ee307503c3c2afa9fb6ed0"
+      "c0f117a50e883a84d2c8652bd38d9cfcb66928e8"
     ]
   },
-  "base_ref": "c976aa616ab5937c7a192ea9da7731639a12c812",
-  "code_integration_sha": "af84b224b2b5c187bbdd6d270725e9e53f31201e",
+  "base_ref": "59f9a44e6c2393ad155b1cfc427dc32d65424a20",
+  "code_integration_sha": "548662a45e4b257f2db2e91ca81e35e124c3635e",
   "contract_version": "1.0",
-  "correlation_id": "eval-url-shortener-9d68a7a31f50",
-  "dispatch_id": "eval-url-shortener-9d68a7a31f50",
+  "correlation_id": "eval-url-shortener-22a465c7e085",
+  "dispatch_id": "eval-url-shortener-22a465c7e085",
   "engine_status": "engine_completed",
-  "generated_at": "2026-06-18T14:07:16.606867Z",
-  "goal_doc_sha": "9d68a7a31f50",
-  "goal_id": "url-shortener-9d68a7a31f50",
-  "integration_branch": "scraps/goal/url-shortener-9d68a7a31f50",
+  "generated_at": "2026-06-20T13:03:22.373174Z",
+  "goal_doc_sha": "22a465c7e085",
+  "goal_id": "url-shortener-22a465c7e085",
+  "integration_branch": "scraps/goal/url-shortener-22a465c7e085",
   "known_gaps": [],
   "metrics_ref": {
     "path": "metrics.json",
-    "sha256": "df4baad952798a3f8ca89dc3098e91d07f1d873b247ae9605d54915829a15c9f"
+    "sha256": "2b6833f5f8ea6284d5b7890350e381d4f5899d3e7cd4f03644f634e81c96512f"
   },
   "owner_verify_result": {
     "checks": [
       {
-        "name": "storage-list-links",
-        "status": "green",
-        "tier": "extended"
-      },
-      {
-        "name": "links-dashboard-view",
+        "name": "inline-url-validation",
         "status": "green",
         "tier": "extended"
       }
     ],
-    "merged_task_count": 2,
+    "merged_task_count": 1,
     "submit_gate_passed": true,
     "tier": "extended"
   },
@@ -66,35 +60,7 @@
           "status": "passed"
         },
         {
-          "command": "pnpm exec vitest run tests/lib/storage.test.ts tests/lib/upstash-storage.test.ts tests/lib/store.test.ts",
-          "exit_code": 0,
-          "status": "passed"
-        },
-        {
-          "command": "pnpm exec tsc --noEmit",
-          "exit_code": 0,
-          "status": "passed"
-        }
-      ],
-      "log_ref": "event:task.verification_evidence:storage-list-links",
-      "name": "storage-list-links",
-      "status": "green",
-      "tier": "extended"
-    },
-    {
-      "checks": [
-        {
-          "command": "pnpm install --frozen-lockfile",
-          "exit_code": 0,
-          "status": "passed"
-        },
-        {
-          "command": "pnpm exec vitest run tests/components/LinksTable.test.tsx",
-          "exit_code": 0,
-          "status": "passed"
-        },
-        {
-          "command": "pnpm exec tsc --noEmit",
+          "command": "pnpm exec vitest run tests/acceptance/validation.test.tsx",
           "exit_code": 0,
           "status": "passed"
         },
@@ -102,10 +68,15 @@
           "command": "pnpm build",
           "exit_code": 0,
           "status": "passed"
+        },
+        {
+          "command": "pnpm run typecheck",
+          "exit_code": 0,
+          "status": "passed"
         }
       ],
-      "log_ref": "event:task.verification_evidence:links-dashboard-view",
-      "name": "links-dashboard-view",
+      "log_ref": "event:task.verification_evidence:inline-url-validation",
+      "name": "inline-url-validation",
       "status": "green",
       "tier": "extended"
     }
