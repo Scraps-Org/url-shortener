@@ -46,6 +46,27 @@ describe('ShortenForm', () => {
     );
   });
 
+  it('shows an inline error and does not fetch when the input is empty', () => {
+    render(<ShortenForm />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Shorten' }));
+
+    expect(screen.getByText('URL을 입력해 주세요')).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  it('shows error for invalid URL and does not call fetch', () => {
+    render(<ShortenForm />);
+
+    const input = screen.getByPlaceholderText('Enter a URL');
+    fireEvent.change(input, { target: { value: 'not a url' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Shorten' }));
+
+    expect(screen.getByText('올바른 URL을 입력해 주세요')).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('copies the short URL to clipboard and shows feedback', async () => {
     const writeTextSpy = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal('navigator', {
