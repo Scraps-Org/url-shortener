@@ -3,7 +3,7 @@ product: "url-shortener"
 owner: lean-startup-agent
 status: active
 updated: 2026-06-20
-goal_version: 57b8d10858a8
+goal_version: ac02580d77fc
 gtm_route: toy
 engine: N/A
 maturity_stage: wizard-sandbox
@@ -38,25 +38,42 @@ Invalid input is rejected with a clear inline message (no silent failure / no br
 
 ## 해야할 일
 
-**Part 1 — 공유 계약 (Validation contract)** `src/app/validation.py`
+**공유 계약 (Shared contract) — 모든 파트의 기반**
 
-`ValidationResult`를 `ok: bool`과 `error: str | None` 두 필드를 가진 `NamedTuple`로 정의한다. 함께 `validate_url(raw: str) -> ValidationResult` 시그니처를 선언한다. 이 타입과 함수 시그니처가 하위 모든 파트의 유일한 계약이 된다 — 핸들러와 템플릿은 이 계약만을 참조한다. (A-1)
+`src/app/validation.py`에 아래 인터페이스를 먼저 정의한다. 다른 모듈은 이 파일만 임포트하며, 역방향 의존은 금지한다.
 
-**Part 2 — 검증 로직 구현** `src/app/validation.py` (Part 1과 동일 파일, 함수 본문)
+- `ValidationResult` — `(ok: bool, error: str | None)` 형태의 named-tuple (또는 dataclass).
+- `validate_url(raw: str) -> ValidationResult` — 빈 문자열·공백만 있는 입력은 즉시 `ok=False`를 반환하고, 비어있지 않으면 `urllib.parse.urlparse`(표준 라이브러리)로 scheme(`http`/`https`)과 netloc 유무를 검사한다. 유효하지 않으면 사람이 읽을 수 있는 `error` 메시지를 포함해 반환한다. _(A-1)_
 
-`validate_url` 내부에서 다음 두 가지를 순서대로 확인한다: ① `raw.strip()`이 빈 문자열이면 `ValidationResult(ok=False, error="URL을 입력하세요")`를 반환한다. ② `urllib.parse.urlparse`(표준 라이브러리)로 파싱 후 `scheme`이 `http` 또는 `https`가 아니거나 `netloc`이 비어 있으면 `ValidationResult(ok=False, error="올바른 URL 형식이 아닙니다")`를 반환한다. 위 검사를 모두 통과하면 `ValidationResult(ok=True, error=None)`을 반환한다. (A-1)
+---
 
-**Part 3 — 요청 핸들러 가드** `src/app/handler.py`
+**파트 1 — URL 검증 모듈**
 
-단축 링크 생성 엔드포인트의 최상단에서 `validate_url(raw)`를 호출한다. `result.ok`가 `False`이면 링크 생성 로직을 전혀 실행하지 않고 즉시 `result.error`를 담은 응답을 반환한다 — 사이드이펙트(DB 기록, 리다이렉트 등) 없음을 코드 구조로 보장한다. `result.ok`가 `True`인 경우에만 기존 생성 로직으로 진행한다. (A-1)
+`src/app/validation.py`: 위 계약의 구현체. `urllib.parse` 외의 서드파티 라이브러리는 사용하지 않는다. 빈 입력 → "URL을 입력해 주세요.", scheme 오류 → "http 또는 https로 시작하는 URL을 입력해 주세요.", netloc 누락 → "올바른 도메인이 포함된 URL을 입력해 주세요." _(A-1)_
 
-**Part 4 — 인라인 에러 표시** `src/app/templates/index.html`
+---
 
-폼 템플릿은 선택적 컨텍스트 변수 `error`를 받는다. `error`가 설정된 경우 입력 필드 바로 아래에 인라인 `<span class="error">` 요소로 렌더링한다 — 별도 페이지 이동 없음, 빈 링크 없음. 에러가 없는 정상 경우에는 해당 요소를 표시하지 않는다. (A-1)
+**파트 2 — 폼 핸들러 (라우트 로직)**
 
-**Part 5 — 표준 라이브러리 제약 확인** (정적 분석)
+`src/app/handler.py`: HTTP POST 요청 본문에서 `url` 필드를 추출해 `validate_url`을 호출한다. `ok=False`이면 단축 링크 생성 로직을 **일절 실행하지 않고** `error` 문자열을 컨텍스트에 담아 폼 템플릿을 다시 렌더링한다(redirect 없음, 인라인 표시). `ok=True`인 경우에만 단축 링크 생성 흐름으로 진입한다. _(A-1)_
 
-`src/app/validation.py`와 `src/app/handler.py`를 대상으로 `ast` 모듈로 모든 `import` 및 `from … import` 문을 수집한 뒤, `sys.stdlib_module_names`(Python 3.10+) 또는 동등한 stdlib 목록과 대조하여 비표준 패키지가 없음을 단언한다. 분석 결과(import 목록)를 출력하여 기계 판독 가능한 증거로 남긴다. (A-1 구조적 제약)
+---
+
+**파트 3 — 폼 템플릿 (UI 인라인 에러 표시)**
+
+`src/app/templates/index.html`: `<form>` 아래에 `{% if error %}` 블록을 두고, 오류 메시지를 입력 필드 바로 아래에 `<span class="error">` 로 렌더링한다. 오류가 없을 때는 해당 요소가 DOM에 존재하지 않아야 한다(빈 span 금지). 이전에 입력한 값은 `value="{{ submitted_url | default('') }}"` 로 보존해 UX 단절을 막는다. _(A-1)_
+
+---
+
+**파트 4 — 진입점 및 모듈 조립**
+
+`src/app/main.py`: WSGI/HTTP 서버 설정, URL 라우팅 등록(GET → 빈 폼, POST → 핸들러 호출). 표준 라이브러리의 `http.server` 또는 프레임워크(objective에 명시된 경우)를 사용한다. 이 파일은 `validation.py`와 `handler.py`를 임포트하지만, 그 역방향 임포트는 없다.
+
+---
+
+**파트 5 — 구조적 제약 확인 (constraint check)**
+
+`src/app/validation.py`가 표준 라이브러리만 임포트하는지, 그리고 `handler.py` / `main.py`가 `validation.py`를 단방향으로만 참조하는지(역방향 없음)를 정적 분석으로 검증한다. 구체적으로: `ast` 모듈로 각 소스 파일의 `import` 노드를 파싱해 (1) `validation.py` 내 모든 임포트 대상이 `sys.stdlib_module_names`(Python 3.10+) 또는 동등한 stdlib 목록에 속하는지 단언하고, (2) `validation.py`의 AST에 `handler` 또는 `main` 심볼에 대한 임포트가 없음을 단언한다. 이 검사는 정적 분석 스크립트로 실행되어 통과/실패를 출력해야 하며, 동작 테스트 통과만으로는 대체할 수 없다. _(A-1 에 대한 구조적 신뢰성 보장)_
 
 ## 수용기준 힌트 (성공의 모습)
 
