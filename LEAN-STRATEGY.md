@@ -4,28 +4,27 @@ product: url-shortener
 owner: lean-startup-agent
 goal_version: 20260620
 status: active
-dimension_id: D4-validation
+dimension_id: D1-shorten
 objective: >
-  Invalid input is rejected with a clear inline message (no silent failure / no broken link).
+  User can paste any valid URL and receive a working short link.
 acceptance:
   - id: A-1
-    hint: >
-      Submitting a non-URL or empty value shows an inline error; no short link is created.
+    hint: ShortenForm accepts a full URL and returns a short link that redirects to the original.
     high_impact: false
 background: >
-  URL shortener is live on Vercel. D1 (shorten), D2 (copy), D3 (history + click count)
-  are all verified. D4 adds inline validation so invalid input shows a clear error and
-  no short link is created — the final dimension before the north-star objective converges.
+  nextjs eval 루프 검증용 테스트 제품 (Projects Test DB). D1-shorten은 objective의
+  최우선 차원 — URL 단축이 동작해야 나머지 차원(copy·history·validation)의 기반이 됨.
+  SCR-610 gate 전환(merge-confirmed shipped)으로 met 집합 재계산 → D1부터 재시작.
 scope_out:
-  - User accounts / auth
-  - Custom vanity domains
-  - Analytics dashboards beyond a per-link click count
-  - D1-shorten — already met (do not re-implement)
-  - D2-copy — already met (do not re-implement)
-  - D3-history — already met (do not re-implement)
+  - User accounts / auth.
+  - Custom vanity domains.
+  - Analytics dashboards beyond a per-link click count.
+  - D2-copy
+  - D3-history
+  - D4-validation
 assumption: >
-  Client-side + server-side URL validation without auth is sufficient to prevent silent
-  failures and broken links for non-technical daily use.
+  A working short link requires only a database write + redirect; no auth or analytics
+  needed for the core shorten path.
 constraints:
   nda: false
   data_sensitivity: none
@@ -36,56 +35,54 @@ engine: N/A
 ---
 
 # Lean Strategy — url-shortener
-Last updated: 2026-06-20 (lean-startup `/lean-strategy-push` rev 2)
+Last updated: 2026-06-20 (lean-startup `/lean-strategy-push` rev 3)
 Source: `products/url-shortener/objective.yaml` · Build Cycles DB · lean-objective-cycle
 
 > frontmatter = allocator 기계 입력(tight). 아래 본문 = 사람·coder 열람용(서사+진행). allocator는 frontmatter만 소비.
 
 ## 검증 중인 가설
 
-이 제품은 eval 루프 검증용 테스트 제품 (실제 제품 무영향). 활성 HYP 없음.
+eval 전용 테스트 제품 — 활성 HYP 없음.
 
-## 현재 목표 (D4-validation)
+## 현재 목표 (D1-shorten)
 
-- **목표**: Invalid input is rejected with a clear inline message (no silent failure / no broken link).
-- **수용 기준**: Submitting a non-URL or empty value shows an inline error; no short link is created.
-- **수렴까지 남은 차원**: D4-validation 1개 (이후 모든 차원 met → objective 수렴)
+- **목표**: User can paste any valid URL and receive a working short link.
+- **수용기준**: ShortenForm accepts a full URL and returns a short link that redirects to the original.
+- **현재 dimension**: D1-shorten (최상단 — objective 최우선 차원)
+- **비고**: SCR-610(merge-confirmed shipped gate) 전환으로 met 집합 재계산. 기존 product_verdict=pass 기록은 브랜치 green 확인이며 dimension met ≠ (gateway status:shipped 필요). D1부터 순차 재시작.
 
-## North-star objective 진행 현황
+## North-star objective 진행
 
 | 차원 | id | 상태 |
 |---|---|---|
-| 단축 URL 생성 | D1-shorten | ✅ met (BC#38 · product_verdict=pass) |
-| 한 번에 복사 | D2-copy | ✅ met (BC#38 · same cycle) |
-| 히스토리·클릭수 | D3-history | ✅ met (BC#40 · product_verdict=pass) |
-| 유효성 검사 메시지 | D4-validation | ⏳ pending ← **현재 목표** |
+| URL 단축 | D1-shorten | ⏳ pending → **현재 목표** |
+| 링크 복사 | D2-copy | ⏳ pending |
+| 히스토리 + 클릭수 | D3-history | ⏳ pending |
+| 잘못된 입력 거절 | D4-validation | ⏳ pending |
+
+> met 판정 = Build Cycles `status: shipped` (SCR-610). 현재 schema에 shipped 값 미존재(SCR-609 prereq 미완료) → 전 차원 pending.
 
 ## 빌드 진행 (build cycles)
 
-- **BC#40** · eval-url-shortener-9d68a7a31f50 · `verdict` — product_verdict: **pass** (D3-history: LinksTable + recordClick on redirect, build green)
-- **BC#39** · eval-url-shortener-e2b3f7626248 · `verdict` — final_verdict: not-achieved (D3 이전 시도, product_verdict 미기록)
-- **BC#38** · eval-url-shortener-a4f28b475792 · `verdict` — product_verdict: **pass** (D1+D2 충족, Vercel green)
+- **BC#56** · eval-url-shortener-22a465c7e085 · `dispatched` — product_verdict: **inconclusive** (D4-validation, PR/metrics 없어 signal 검증 불가)
+- **BC#55** · eval-url-shortener-29ebe145e005 · `verdict` — product_verdict: **pass**
+- **BC#40** · eval-url-shortener-9d68a7a31f50 · `verdict` — product_verdict: pass / final_verdict: not-achieved
+- **BC#38** · eval-url-shortener-a4f28b475792 · `derdict` — product_verdict: **pass** / final_verdict: achieved
 
 ## 접근 방향
 
-- **MVP 패턴**: Wizard of Oz (Ries Ch.6) — Next.js ShortenForm에 client-side URL regex 검사 + 서버-side `isValidUrl()` 거부 응답 → inline error message 표시. 별도 백엔드 불필요.
-- **제약**: No backend service beyond what Vercel hosts — 기존 `shorten()` 함수의 `isValidUrl()` 이미 존재, UI 레이어 연결이 핵심.
-- **피해야 할 anti-pattern**: 계정·인증(scope_out), 클릭 분석 대시보드(scope_out), 이미 met된 D1·D2·D3 재구현.
+- **MVP 패턴**: Wizard of Oz (Ries Ch.6) — Next.js ShortenForm에서 URL 입력 → `/api/shorten` 서버액션 → DB 저장 + 단축 코드 반환 → 리다이렉트 검증.
+- **피해야 할 anti-pattern**: scope_out 항목(auth·custom domain·analytics dashboard) 구현, D2·D3·D4 ahead-of-time 구현.
 
-## 의사결정 로그
+## 최근 인사이트 (30d)
 
-(이 제품 관련 macro 결정 없음 — eval 전용 루프)
-
-## 최근 회의
-
-(해당 없음)
+(eval 제품 — 인터뷰 패턴 없음)
 
 ## Cross-link
 
 - url-shortener Projects DB row: https://www.notion.so/37fff5099be2810ab12bc97f63b13209
-- BC#40 Build Cycle: https://app.notion.com/p/eval-url-shortener-9d68a7a31f50-383ff5099be28120b14de37a659cd802
-- BC#38 Build Cycle: https://app.notion.com/p/eval-url-shortener-a4f28b475792-381ff5099be281728319e28a7388f4ca
+- BC#56 Build Cycle: https://app.notion.com/p/eval-url-shortener-22a465c7e085-385ff5099be2815fafe9fb6c3661828d
 - 배포 런북: https://app.notion.com/p/url-shortener-Vercel-2026-06-15-380ff5099be281969b38d14b302dd765
 
 ---
-<!-- LEAN-STRATEGY-META rev=2 lean_startup_commit=20260620 generated_at=2026-06-20T00:00:00Z source_pages=3 -->
+<!-- LEAN-STRATEGY-META rev=3 lean_startup_commit=20260620 generated_at=2026-06-20T13:09:16Z source_pages=3 -->
