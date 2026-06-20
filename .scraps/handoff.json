@@ -1,28 +1,28 @@
 {
   "artifact_refs": {
     "merged_task_shas": [
-      "c2ff2587fc7bdf792a6ebd2bcca1afa50c627218"
+      "9cfb584c80ff3edb07da41bb77d83e85360674db"
     ]
   },
-  "base_ref": "cf04dbdbc7f24b16584d04f817e1379a425f32c8",
-  "code_integration_sha": "be10a2b217cfdfd67ff436684124b04c7b7c7e07",
+  "base_ref": "4cb1c8826960fd6c82ca53b78f3ea26c1ea16094",
+  "code_integration_sha": "ec5efbb7c4e87bf83b42b7aa78404f442fff9dc4",
   "contract_version": "1.0",
   "correlation_id": "eval-url-shortener-e3a98c80d074",
-  "dispatch_id": "eval-url-shortener-e3a98c80d074",
+  "dispatch_id": "eval-url-shortener-e3a98c80d074-a2",
   "engine_status": "engine_completed",
-  "generated_at": "2026-06-20T13:22:54.737050Z",
+  "generated_at": "2026-06-20T13:45:16.842936Z",
   "goal_doc_sha": "e3a98c80d074",
   "goal_id": "url-shortener-e3a98c80d074",
   "integration_branch": "scraps/goal/url-shortener-e3a98c80d074",
   "known_gaps": [],
   "metrics_ref": {
     "path": "metrics.json",
-    "sha256": "69b3fefbd11fd02388e51610f30db542a3ec1f81123c97e13e834c1340671499"
+    "sha256": "2b6833f5f8ea6284d5b7890350e381d4f5899d3e7cd4f03644f634e81c96512f"
   },
   "owner_verify_result": {
     "checks": [
       {
-        "name": "a1-shorten-redirect-flow",
+        "name": "shorten-form-error-handling",
         "status": "green",
         "tier": "extended"
       }
@@ -60,7 +60,12 @@
           "status": "passed"
         },
         {
-          "command": "pnpm exec vitest run tests/api/shorten-redirect.test.ts",
+          "command": "pnpm exec vitest run tests/components/shorten-form-error.test.tsx",
+          "exit_code": 0,
+          "status": "passed"
+        },
+        {
+          "command": "pnpm exec vitest run tests/components/ShortenForm.test.tsx",
           "exit_code": 0,
           "status": "passed"
         },
@@ -75,8 +80,8 @@
           "status": "passed"
         }
       ],
-      "log_ref": "event:task.verification_evidence:a1-shorten-redirect-flow",
-      "name": "a1-shorten-redirect-flow",
+      "log_ref": "event:task.verification_evidence:shorten-form-error-handling",
+      "name": "shorten-form-error-handling",
       "status": "green",
       "tier": "extended"
     }
