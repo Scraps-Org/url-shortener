@@ -2,13 +2,25 @@
 
 import { useState } from 'react';
 
+import { isValidUrl } from '~/lib/code';
+
 export function ShortenForm() {
   const [url, setUrl] = useState('');
   const [code, setCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string>('');
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (url.trim() === '') {
+      setError('URL is required');
+      return;
+    }
+    if (!isValidUrl(url)) {
+      setError('Please enter a valid URL');
+      return;
+    }
+    setError('');
     const response = await fetch('/api/shorten', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -30,7 +42,7 @@ export function ShortenForm() {
   const fullUrl = code ? `${window.location.origin}/${code}` : '';
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit} noValidate>
       <input
         type="url"
         name="url"
@@ -40,6 +52,7 @@ export function ShortenForm() {
         aria-label="Enter a URL"
       />
       <button type="submit">Shorten</button>
+      {error && <p role="alert">{error}</p>}
       {code !== null && (
         <p>
           Short URL: <a href={fullUrl}>{fullUrl}</a>
