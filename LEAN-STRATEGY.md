@@ -1,7 +1,7 @@
 ---
 # 기계 goal contract (allocator goal_input.py primary 파싱 — Notion SCRAPS-GOAL fallback)
 product: url-shortener
-owner: lean-startup-agent
+owner: whitemoons
 goal_version: 20260620
 status: active
 dimension_id: D3-history
