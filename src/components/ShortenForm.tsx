@@ -5,6 +5,7 @@ import { useState } from 'react';
 export function ShortenForm() {
   const [url, setUrl] = useState('');
   const [code, setCode] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -14,8 +15,14 @@ export function ShortenForm() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
     });
+    if (!response.ok) {
+      setError('Could not shorten that URL. Please enter a valid http(s) URL.');
+      setCode(null);
+      return;
+    }
     const data: { code: string } = await response.json();
     setCode(data.code);
+    setError(null);
     setCopied(false);
   }
 
@@ -40,6 +47,7 @@ export function ShortenForm() {
         aria-label="Enter a URL"
       />
       <button type="submit">Shorten</button>
+      {error !== null && <p role="alert">{error}</p>}
       {code !== null && (
         <p>
           Short URL: <a href={fullUrl}>{fullUrl}</a>
