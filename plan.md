@@ -2,14 +2,14 @@
 product: "url-shortener"
 owner: lean-startup-agent
 status: active
-updated: 2026-06-18
-goal_version: 9d68a7a31f50
+updated: 2026-06-20
+goal_version: 22a465c7e085
 gtm_route: toy
 engine: N/A
 maturity_stage: wizard-sandbox
 acceptance:
   - id: A-1
-    hint: "A list/table view shows created short links with a per-link click count that increments on redirect.\n"
+    hint: "Submitting a non-URL or empty value shows an inline error; no short link is created.\n"
     high_impact: false
   - id: PKG-HEALTH
     hint: "clean env 에서 프로젝트 표준 빌드+테스트 명령이 우회 없이 통과하고 패키지가 정상 빌드·실행된다 (python: `make test` 또는 `uv run pytest` — PYTHONPATH 우회 금지; node: package.json `packageManager` 기준 PM 으로 lockfile clean install+build+test, 예 `pnpm i --frozen-lockfile && pnpm build && pnpm test` 또는 `npm ci && npm run build && npm test`). 패키지명·레이아웃이 제품과 정합한다 — pyproject `name`·`packages`(python) 또는 package.json `name`(node)이 제품명이고, 템플릿 잔재(`python-service-template`·`src/app` 패키지·`nextjs-service-template` 등)가 남지 않는다."
@@ -22,74 +22,49 @@ acceptance:
 
 ## 목표 (1줄)
 
-User can see the links they created and how many times each was clicked.
+Invalid input is rejected with a clear inline message (no silent failure / no broken link).
 
 ## 빌드 맥락 (lean WHY)
 
-- 배경: URL shortener is live on Vercel. D1 (shorten) and D2 (copy) are verified (PR #23, eval-url-shortener-a4f28b475792, product_verdict=pass). D3 adds history and click-count visibility — the remaining gap before the north-star objective is satisfied.
-- 검증 가정(leap-of-faith): Displaying created links + click counts on the same page the user lands on is sufficient for non-technical daily use without requiring auth or accounts.
+- 배경: URL shortener is live on Vercel. D1 (shorten), D2 (copy), D3 (history + click count) are all verified. D4 adds inline validation so invalid input shows a clear error and no short link is created — the final dimension before the north-star objective converges.
+- 검증 가정(leap-of-faith): Client-side + server-side URL validation without auth is sufficient to prevent silent failures and broken links for non-technical daily use.
 - 범위 밖 (이번 cycle 안 만듦):
   - User accounts / auth
   - Custom vanity domains
   - Analytics dashboards beyond a per-link click count
-  - D1 shorten — already met (do not re-implement)
-  - D2 copy button — already met (do not re-implement)
+  - D1-shorten — already met (do not re-implement)
+  - D2-copy — already met (do not re-implement)
+  - D3-history — already met (do not re-implement)
 
 ## 해야할 일
 
-**Part 1 — Shared contract: data model** (`src/app/models.py`)
+**파트 1 — 공유 계약: 입력 검증 함수 시그니처 (`src/app/validators.py` 신규)**
 
-`LinkRecord` dataclass with fields `slug: str`, `target_url: str`, `created_at: str` (ISO-8601 text), `click_count: int`. This is the single type passed between the storage, redirect, and dashboard layers — all other parts import only from here. Serves: A-1.
+모든 하위 파트가 의존하는 계약을 먼저 확정한다.
 
----
+```
+validate_url(raw: str) -> tuple[bool, str]
+  - 유효: (True, "")
+  - 무효: (False, <사용자에게 보여줄 인라인 메시지>)
+```
 
-**Part 2 — Storage layer** (`src/app/storage.py`)
-
-Uses `sqlite3` (stdlib). Schema: `links(slug TEXT PRIMARY KEY, target_url TEXT NOT NULL, created_at TEXT NOT NULL, click_count INTEGER NOT NULL DEFAULT 0)`. Exposes these five functions (all accept `db_path: str` as first argument so the caller controls the database file):
-
-- `init_db(db_path) -> None` — `CREATE TABLE IF NOT EXISTS …`
-- `create_link(db_path, slug, target_url) -> LinkRecord` — inserts row, raises `ValueError` on duplicate slug.
-- `get_link(db_path, slug) -> LinkRecord | None` — single-row fetch.
-- `get_all_links(db_path) -> list[LinkRecord]` — all rows, ordered `created_at DESC`.
-- `increment_click(db_path, slug) -> None` — atomic `UPDATE … SET click_count = click_count + 1 WHERE slug = ?`.
-
-Serves: A-1.
+거부 조건 두 가지: ① `raw.strip()`이 빈 문자열, ② `urllib.parse.urlparse` 결과에서 `scheme`(`http`/`https`)이나 `netloc`이 없는 경우. 표준 라이브러리(`urllib.parse`)만 사용. **(A-1)**
 
 ---
 
-**Part 3 — Redirect handler** (`src/app/redirect.py`)
+**파트 2 — 폼 핸들러에 인라인 오류 통합 (`src/app/routes.py` 수정)**
 
-Single function `handle(handler: BaseHTTPRequestHandler, db_path: str, slug: str) -> None`. Calls `storage.get_link`; if found, calls `storage.increment_click` then writes an HTTP 302 with `Location: target_url`; if not found, writes 404. The increment must complete before the response is sent. Serves: A-1 (click count increments on each redirect).
-
----
-
-**Part 4 — Dashboard view** (`src/app/dashboard.py`)
-
-Single function `handle(handler: BaseHTTPRequestHandler, db_path: str) -> None`. Calls `storage.get_all_links`, then builds and writes an HTML 200 response containing a `<table>` with four columns — Short Link (the slug rendered as a clickable `<a href="/<slug>">`), Target URL, Created At, Click Count. HTML is assembled with f-strings; no template engine. Serves: A-1 (list/table view with per-link click count).
+단축 링크 생성 엔드포인트(POST 핸들러)에서 `validate_url`을 먼저 호출한다. 실패 시 단축 링크 생성 로직 진입 없이 즉시 폼 페이지를 `error=<메시지>` 컨텍스트와 함께 재렌더링한다(`redirect` 아닌 동일 응답). 성공 경로는 기존 로직 그대로 유지한다. 템플릿에는 이미 있는 오류 표시 영역(`{{ error }}` 등)을 활용하거나, 없으면 최소 한 줄 추가한다. **(A-1)**
 
 ---
 
-**Part 5 — Application entry point and router** (`src/app/app.py`)
-
-Subclasses `http.server.BaseHTTPRequestHandler`. `do_GET` dispatches on `self.path`:
-
-- `/` or `/links` → `dashboard.handle(self, db_path)`
-- `/<slug>` (single-segment path, no further slashes) → `redirect.handle(self, db_path, slug)`
-- anything else → 404.
-
-Reads `DB_PATH` from `os.environ`, defaulting to `"links.db"`. Calls `storage.init_db(db_path)` once at startup before `HTTPServer.serve_forever()`. Serves: A-1.
-
----
-
-**Part 6 — Constraint check: stdlib-only import verification** (`src/app/check_imports.py`)
-
-Runnable script (no arguments needed). Uses `ast` to parse every `*.py` file under `src/app/` (located via `pathlib.Path`). Collects every top-level module name from `import X` and `from X import …` nodes. Asserts each name is in `sys.stdlib_module_names` (Python ≥ 3.10) — if unavailable, falls back to a hardcoded allowlist of modules used in this project (`sqlite3`, `http`, `os`, `pathlib`, `dataclasses`, `datetime`, `ast`, `sys`). Prints each violating `(file, module)` pair and exits with code 1 if any violation is found, exits 0 otherwise. This produces machine-readable evidence that the standard-library-only constraint holds. Serves: structural stdlib-only constraint.
+**범위 외 (이번 슬라이스 제외):** 중복 URL 검사, 사용자별 단축 링크 제한, 실시간 클라이언트 측 검증. 이번 승인 기준은 서버 측 거부 + 인라인 메시지 표시만 요구하므로 위 항목은 이후 슬라이스로 연기한다.
 
 ## 수용기준 힌트 (성공의 모습)
 
 frontmatter `acceptance` 와 1:1. evaluator 가 게이트에서 판단형 기준(P1)으로 도출.
 
-- A-1: A list/table view shows created short links with a per-link click count that increments on redirect.
+- A-1: Submitting a non-URL or empty value shows an inline error; no short link is created.
 
 - PKG-HEALTH: clean env 에서 프로젝트 표준 빌드+테스트 명령이 우회 없이 통과하고 패키지가 정상 빌드·실행된다 (python: `make test` 또는 `uv run pytest` — PYTHONPATH 우회 금지; node: package.json `packageManager` 기준 PM 으로 lockfile clean install+build+test, 예 `pnpm i --frozen-lockfile && pnpm build && pnpm test` 또는 `npm ci && npm run build && npm test`). 패키지명·레이아웃이 제품과 정합한다 — pyproject `name`·`packages`(python) 또는 package.json `name`(node)이 제품명이고, 템플릿 잔재(`python-service-template`·`src/app` 패키지·`nextjs-service-template` 등)가 남지 않는다.
 
