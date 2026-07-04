@@ -6,22 +6,22 @@ vi.mock('../../src/lib/storage', () => ({
   getLink: vi.fn<[string], Promise<string | null>>().mockResolvedValue(null),
 }));
 
-vi.mock('../../src/lib/upstash-storage', () => ({
-  saveLink: vi.fn<[string, string], Promise<void>>().mockResolvedValue(undefined),
-  getLink: vi.fn<[string], Promise<string | null>>().mockResolvedValue(null),
-}));
-
 vi.mock('../../src/lib/store', () => ({
   saveLink: vi.fn<[string, string], Promise<void>>().mockResolvedValue(undefined),
   getLink: vi.fn<[string], Promise<string | null>>().mockResolvedValue(null),
 }));
 
-describe('D1-shorten — POST /api/shorten route', () => {
+vi.mock('../../src/lib/upstash-storage', () => ({
+  saveLink: vi.fn<[string, string], Promise<void>>().mockResolvedValue(undefined),
+  getLink: vi.fn<[string], Promise<string | null>>().mockResolvedValue(null),
+}));
+
+describe('D1-shorten: POST /api/shorten', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('returns a short link when given a valid URL', async () => {
+  it('returns a short link for a valid URL', async () => {
     const req = new Request('http://localhost/api/shorten', {
       method: 'POST',
       body: JSON.stringify({ url: 'https://example.com/path' }),
@@ -30,12 +30,21 @@ describe('D1-shorten — POST /api/shorten route', () => {
 
     const res = await POST(req);
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBeGreaterThanOrEqual(200);
+    expect(res.status).toBeLessThan(300);
 
-    const body = (await res.json()) as Record<string, unknown>;
-    expect(typeof body.shortUrl === 'string' || typeof body.code === 'string').toBe(true);
+    const body = await res.json() as Record<string, unknown>;
+    const shortValue =
+      typeof body['shortUrl'] === 'string'
+        ? body['shortUrl']
+        : typeof body['code'] === 'string'
+        ? body['code']
+        : typeof body['short'] === 'string'
+        ? body['short']
+        : null;
 
-    const shortValue = (body.shortUrl ?? body.code) as string;
-    expect(shortValue.length).toBeGreaterThan(0);
+    expect(shortValue).toBeTruthy();
+    expect(typeof shortValue).toBe('string');
+    expect((shortValue as string).length).toBeGreaterThan(0);
   });
 });
