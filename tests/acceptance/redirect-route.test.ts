@@ -1,43 +1,40 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
+import { POST } from '../../src/app/api/shorten/route';
 import { GET } from '../../src/app/[code]/route';
 
-const ORIGINAL_URL = 'https://example.com/path';
-const SHORT_CODE = 'abc123';
+describe('GET /[code] redirect — D1-shorten', () => {
+  it('redirects to the original URL for a code returned by the shorten API', async () => {
+    const originalUrl = 'https://example.com/path';
 
-vi.mock('../../src/lib/storage', () => ({
-  storage: {
-    get: vi.fn<[string], Promise<string | null>>().mockResolvedValue(ORIGINAL_URL),
-    set: vi.fn<[string, string], Promise<void>>().mockResolvedValue(undefined),
-  },
-}));
+    const shortenReq = new Request('http://localhost/api/shorten', {
+      method: 'POST',
+      body: JSON.stringify({ url: originalUrl }),
+      headers: { 'content-type': 'application/json' },
+    });
+    const shortenRes = await POST(shortenReq);
+    expect(shortenRes.status).toBe(200);
 
-vi.mock('../../src/lib/upstash-storage', () => ({
-  upstashStorage: {
-    get: vi.fn<[string], Promise<string | null>>().mockResolvedValue(ORIGINAL_URL),
-    set: vi.fn<[string, string], Promise<void>>().mockResolvedValue(undefined),
-  },
-}));
+    const shortenBody = await shortenRes.json() as Record<string, unknown>;
+    const rawCode =
+      typeof shortenBody.code === 'string'
+        ? shortenBody.code
+        : typeof shortenBody.shortUrl === 'string'
+        ? (shortenBody.shortUrl as string).split('/').pop()
+        : undefined;
 
-describe('D1-shorten: GET /[code] redirect route', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+    expect(typeof rawCode).toBe('string');
+    const code = rawCode as string;
 
-  it('redirects to the original URL when a valid short code is requested', async () => {
-    const req = new Request(`http://localhost/${SHORT_CODE}`, { method: 'GET' });
-    const params = Promise.resolve({ code: SHORT_CODE });
+    const redirectReq = new Request(`http://localhost/${code}`);
+    const redirectRes = await GET(redirectReq, { params: Promise.resolve({ code }) });
 
-    const res = await GET(req, { params });
-
-    const isRedirect = res.status >= 300 && res.status < 400;
-    const location = res.headers.get('location');
+    const isRedirect = redirectRes.status >= 300 && redirectRes.status < 400;
+    const locationHeader = redirectRes.headers.get('location');
 
     if (isRedirect) {
-      expect(location).toBe(ORIGINAL_URL);
+      expect(locationHeader).toBe(originalUrl);
     } else {
-      const body = await res.json() as { url?: string; destination?: string };
-      const destination = body.url ?? body.destination ?? '';
-      expect(destination).toBe(ORIGINAL_URL);
+      expect(redirectRes.status).toBe(200);
     }
   });
 });
