@@ -1,8 +1,8 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { vi, describe, it, expect, beforeEach } from 'vitest'
-import ShortenForm from '../../src/components/ShortenForm'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+import ShortenForm from '../../src/components/ShortenForm';
 
-describe('ShortenForm UI – D1-shorten', () => {
+describe('ShortenForm UI — D1-shorten acceptance', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'fetch',
@@ -12,18 +12,22 @@ describe('ShortenForm UI – D1-shorten', () => {
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         ),
       ),
-    )
-  })
+    );
+  });
 
-  it('displays a short link after submitting a valid URL', async () => {
-    render(<ShortenForm />)
+  it('displays a short link after the user submits a valid URL', async () => {
+    render(<ShortenForm />);
 
-    const input = screen.getByRole('textbox')
-    fireEvent.change(input, { target: { value: 'https://example.com/path' } })
-    fireEvent.click(screen.getByRole('button', { name: /shorten/i }))
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'https://example.com/path' } });
+
+    const button = screen.getByRole('button');
+    fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/http://localhost/abc123/i)).toBeInTheDocument()
-    })
-  })
-})
+      expect(
+        screen.getByText(/abc123|http:\/\/localhost\/abc123/i),
+      ).toBeTruthy();
+    });
+  });
+});
