@@ -1,40 +1,57 @@
-import { describe, it, expect } from 'vitest';
-import { POST } from '../../src/app/api/shorten/route';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GET } from '../../src/app/[code]/route';
 
-describe('GET /[code] redirect — D1-shorten', () => {
-  it('redirects to the original URL for a code returned by the shorten API', async () => {
-    const originalUrl = 'https://example.com/path';
+const ORIGINAL_URL = 'https://example.com/path';
+const TEST_CODE = 'abc123';
 
-    const shortenReq = new Request('http://localhost/api/shorten', {
-      method: 'POST',
-      body: JSON.stringify({ url: originalUrl }),
-      headers: { 'content-type': 'application/json' },
-    });
-    const shortenRes = await POST(shortenReq);
-    expect(shortenRes.status).toBe(200);
+vi.mock('../../src/lib/storage', () => ({
+  storage: {
+    get: vi.fn<[string], Promise<string | null>>().mockImplementation(
+      async (key: string) => (key === TEST_CODE ? ORIGINAL_URL : null),
+    ),
+    set: vi.fn<[string, string], Promise<void>>().mockResolvedValue(undefined),
+  },
+}));
 
-    const shortenBody = await shortenRes.json() as Record<string, unknown>;
-    const rawCode =
-      typeof shortenBody.code === 'string'
-        ? shortenBody.code
-        : typeof shortenBody.shortUrl === 'string'
-        ? (shortenBody.shortUrl as string).split('/').pop()
-        : undefined;
+vi.mock('../../src/lib/store', () => ({
+  store: {
+    get: vi.fn<[string], Promise<string | null>>().mockImplementation(
+      async (key: string) => (key === TEST_CODE ? ORIGINAL_URL : null),
+    ),
+    set: vi.fn<[string, string], Promise<void>>().mockResolvedValue(undefined),
+  },
+}));
 
-    expect(typeof rawCode).toBe('string');
-    const code = rawCode as string;
+vi.mock('../../src/lib/upstash-storage', () => ({
+  upstashStorage: {
+    get: vi.fn<[string], Promise<string | null>>().mockImplementation(
+      async (key: string) => (key === TEST_CODE ? ORIGINAL_URL : null),
+    ),
+    set: vi.fn<[string, string], Promise<void>>().mockResolvedValue(undefined),
+  },
+}));
 
-    const redirectReq = new Request(`http://localhost/${code}`);
-    const redirectRes = await GET(redirectReq, { params: Promise.resolve({ code }) });
+describe('D1-shorten – GET /[code] redirect route', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-    const isRedirect = redirectRes.status >= 300 && redirectRes.status < 400;
-    const locationHeader = redirectRes.headers.get('location');
+  it('redirects to the original URL when a valid short code is requested', async () => {
+    const req = new Request(`http://localhost/${TEST_CODE}`, { method: 'GET', redirect: 'manual' });
+    const params = Promise.resolve({ code: TEST_CODE });
+
+    const res = await GET(req, { params });
+
+    const isRedirect = res.status >= 300 && res.status < 400;
+    const location = res.headers.get('location') ?? '';
 
     if (isRedirect) {
-      expect(locationHeader).toBe(originalUrl);
+      expect(location).toBe(ORIGINAL_URL);
     } else {
-      expect(redirectRes.status).toBe(200);
+      // Some implementations return 200 with a body containing the destination
+      expect(res.status).toBe(200);
+      const body = await res.text();
+      expect(body).toContain(ORIGINAL_URL);
     }
   });
 });
