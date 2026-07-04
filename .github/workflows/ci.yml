@@ -12,6 +12,10 @@ concurrency:
 jobs:
   lint-test:
     name: Lint + Typecheck + Test (Node ${{ matrix.node-version }})
+    # scraps 자율 루프 내부 브랜치(scraps/plan/*, scraps/goal/*)는 red-at-base 오라클을
+    # 담은 PR 이라 GitHub CI 가 항상 실패한다 — 판정은 scraps mechanical 게이트가 담당하며,
+    # 여기서 CI 를 돌리면 소유자에게 실패 메일만 반복 발송된다. 루프 브랜치는 skip.
+    if: ${{ !startsWith(github.head_ref, 'scraps/') }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -47,6 +51,7 @@ jobs:
 
   build:
     name: Build (Next.js standalone)
+    if: ${{ !startsWith(github.head_ref, 'scraps/') }}
     runs-on: ubuntu-latest
     needs: lint-test
     steps:
@@ -63,6 +68,7 @@ jobs:
 
   docker-build:
     name: Docker build (smoke)
+    if: ${{ !startsWith(github.head_ref, 'scraps/') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
