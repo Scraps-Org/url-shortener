@@ -1,8 +1,8 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import ShortenForm from '../../src/components/ShortenForm'
 
-describe('D1-shorten: ShortenForm UI', () => {
+describe('D1-shorten – ShortenForm UI', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'fetch',
@@ -10,12 +10,16 @@ describe('D1-shorten: ShortenForm UI', () => {
         new Response(JSON.stringify({ shortUrl: 'http://localhost/abc123' }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
-        })
-      )
+        }),
+      ),
     )
   })
 
-  it('displays a short link after submitting a valid URL', async () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('given a valid URL is submitted, then a short link is displayed in the response', async () => {
     render(<ShortenForm />)
 
     const input = screen.getByRole('textbox')
@@ -23,7 +27,7 @@ describe('D1-shorten: ShortenForm UI', () => {
     fireEvent.click(screen.getByRole('button', { name: /shorten/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/abc123/i)).toBeTruthy()
+      expect(screen.getByText(/abc123/i)).toBeInTheDocument()
     })
   })
 })
