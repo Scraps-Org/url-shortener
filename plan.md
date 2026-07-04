@@ -2,15 +2,12 @@
 product: "url-shortener"
 owner: lean-startup-agent
 status: active
-updated: 2026-06-18
-goal_version: 9d68a7a31f50
-gtm_route: toy
-engine: N/A
-maturity_stage: wizard-sandbox
+updated: 2026-07-04
+goal_version: 82bdb173bd38
 acceptance:
-  - id: A-1
-    hint: "A list/table view shows created short links with a per-link click count that increments on redirect.\n"
-    high_impact: false
+  - id: D1-shorten
+    hint: "ShortenForm accepts a full URL and returns a short link that redirects to the original."
+    high_impact: true
   - id: PKG-HEALTH
     hint: "clean env 에서 프로젝트 표준 빌드+테스트 명령이 우회 없이 통과하고 패키지가 정상 빌드·실행된다 (python: `make test` 또는 `uv run pytest` — PYTHONPATH 우회 금지; node: package.json `packageManager` 기준 PM 으로 lockfile clean install+build+test, 예 `pnpm i --frozen-lockfile && pnpm build && pnpm test` 또는 `npm ci && npm run build && npm test`). 패키지명·레이아웃이 제품과 정합한다 — pyproject `name`·`packages`(python) 또는 package.json `name`(node)이 제품명이고, 템플릿 잔재(`python-service-template`·`src/app` 패키지·`nextjs-service-template` 등)가 남지 않는다."
     high_impact: true
@@ -22,75 +19,24 @@ acceptance:
 
 ## 목표 (1줄)
 
-User can see the links they created and how many times each was clicked.
-
-## 빌드 맥락 (lean WHY)
-
-- 배경: URL shortener is live on Vercel. D1 (shorten) and D2 (copy) are verified (PR #23, eval-url-shortener-a4f28b475792, product_verdict=pass). D3 adds history and click-count visibility — the remaining gap before the north-star objective is satisfied.
-- 검증 가정(leap-of-faith): Displaying created links + click counts on the same page the user lands on is sufficient for non-technical daily use without requiring auth or accounts.
-- 범위 밖 (이번 cycle 안 만듦):
-  - User accounts / auth
-  - Custom vanity domains
-  - Analytics dashboards beyond a per-link click count
-  - D1 shorten — already met (do not re-implement)
-  - D2 copy button — already met (do not re-implement)
+User can paste any valid URL and receive a working short link.
 
 ## 해야할 일
 
-**Part 1 — Shared contract: data model** (`src/app/models.py`)
+Constraints:
+- Next.js app must build and the Vercel deploy must stay green (PKG-HEALTH gate).
+- No backend service beyond what Vercel hosts (keep it deployable as-is).
 
-`LinkRecord` dataclass with fields `slug: str`, `target_url: str`, `created_at: str` (ISO-8601 text), `click_count: int`. This is the single type passed between the storage, redirect, and dashboard layers — all other parts import only from here. Serves: A-1.
-
----
-
-**Part 2 — Storage layer** (`src/app/storage.py`)
-
-Uses `sqlite3` (stdlib). Schema: `links(slug TEXT PRIMARY KEY, target_url TEXT NOT NULL, created_at TEXT NOT NULL, click_count INTEGER NOT NULL DEFAULT 0)`. Exposes these five functions (all accept `db_path: str` as first argument so the caller controls the database file):
-
-- `init_db(db_path) -> None` — `CREATE TABLE IF NOT EXISTS …`
-- `create_link(db_path, slug, target_url) -> LinkRecord` — inserts row, raises `ValueError` on duplicate slug.
-- `get_link(db_path, slug) -> LinkRecord | None` — single-row fetch.
-- `get_all_links(db_path) -> list[LinkRecord]` — all rows, ordered `created_at DESC`.
-- `increment_click(db_path, slug) -> None` — atomic `UPDATE … SET click_count = click_count + 1 WHERE slug = ?`.
-
-Serves: A-1.
-
----
-
-**Part 3 — Redirect handler** (`src/app/redirect.py`)
-
-Single function `handle(handler: BaseHTTPRequestHandler, db_path: str, slug: str) -> None`. Calls `storage.get_link`; if found, calls `storage.increment_click` then writes an HTTP 302 with `Location: target_url`; if not found, writes 404. The increment must complete before the response is sent. Serves: A-1 (click count increments on each redirect).
-
----
-
-**Part 4 — Dashboard view** (`src/app/dashboard.py`)
-
-Single function `handle(handler: BaseHTTPRequestHandler, db_path: str) -> None`. Calls `storage.get_all_links`, then builds and writes an HTML 200 response containing a `<table>` with four columns — Short Link (the slug rendered as a clickable `<a href="/<slug>">`), Target URL, Created At, Click Count. HTML is assembled with f-strings; no template engine. Serves: A-1 (list/table view with per-link click count).
-
----
-
-**Part 5 — Application entry point and router** (`src/app/app.py`)
-
-Subclasses `http.server.BaseHTTPRequestHandler`. `do_GET` dispatches on `self.path`:
-
-- `/` or `/links` → `dashboard.handle(self, db_path)`
-- `/<slug>` (single-segment path, no further slashes) → `redirect.handle(self, db_path, slug)`
-- anything else → 404.
-
-Reads `DB_PATH` from `os.environ`, defaulting to `"links.db"`. Calls `storage.init_db(db_path)` once at startup before `HTTPServer.serve_forever()`. Serves: A-1.
-
----
-
-**Part 6 — Constraint check: stdlib-only import verification** (`src/app/check_imports.py`)
-
-Runnable script (no arguments needed). Uses `ast` to parse every `*.py` file under `src/app/` (located via `pathlib.Path`). Collects every top-level module name from `import X` and `from X import …` nodes. Asserts each name is in `sys.stdlib_module_names` (Python ≥ 3.10) — if unavailable, falls back to a hardcoded allowlist of modules used in this project (`sqlite3`, `http`, `os`, `pathlib`, `dataclasses`, `datetime`, `ast`, `sys`). Prints each violating `(file, module)` pair and exits with code 1 if any violation is found, exits 0 otherwise. This produces machine-readable evidence that the standard-library-only constraint holds. Serves: structural stdlib-only constraint.
+Out of scope:
+- User accounts / auth.
+- Custom vanity domains.
+- Analytics dashboards beyond a per-link click count.
 
 ## 수용기준 힌트 (성공의 모습)
 
 frontmatter `acceptance` 와 1:1. evaluator 가 게이트에서 판단형 기준(P1)으로 도출.
 
-- A-1: A list/table view shows created short links with a per-link click count that increments on redirect.
-
+- D1-shorten: ShortenForm accepts a full URL and returns a short link that redirects to the original.
 - PKG-HEALTH: clean env 에서 프로젝트 표준 빌드+테스트 명령이 우회 없이 통과하고 패키지가 정상 빌드·실행된다 (python: `make test` 또는 `uv run pytest` — PYTHONPATH 우회 금지; node: package.json `packageManager` 기준 PM 으로 lockfile clean install+build+test, 예 `pnpm i --frozen-lockfile && pnpm build && pnpm test` 또는 `npm ci && npm run build && npm test`). 패키지명·레이아웃이 제품과 정합한다 — pyproject `name`·`packages`(python) 또는 package.json `name`(node)이 제품명이고, 템플릿 잔재(`python-service-template`·`src/app` 패키지·`nextjs-service-template` 등)가 남지 않는다.
 
 ## 코딩 가이드 (planner)
