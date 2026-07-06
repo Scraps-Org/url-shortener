@@ -2,7 +2,7 @@
 product: "url-shortener"
 owner: lean-startup-agent
 status: active
-updated: 2026-06-28
+updated: 2026-07-06
 goal_version: 3c42fc6a1084
 acceptance:
   - id: A-1
