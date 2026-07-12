@@ -1,0 +1,21 @@
+# SCR-972 파일럿 — k3s self-hosted ARC 러너(scraps-k3s-linux) 검증.
+# GitHub-hosted 분 0 으로 도는지, 잡이 bosgame 러너 pod 에 디스패치되는지 확인용 스모크.
+name: selfhosted-smoke
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: selfhosted-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: scraps-k3s-linux
+    steps:
+      - uses: actions/checkout@v4
+      - name: runner info
+        run: |
+          echo "runner=${RUNNER_NAME:-?} os=$(uname -sm) host=$(hostname)"
+          echo "self-hosted k3s runner OK (SCR-972)"
