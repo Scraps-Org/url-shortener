@@ -1,39 +1,33 @@
 {
   "artifact_refs": {
     "merged_task_shas": [
-      "3e36b4a6390f8510676ec5192170c761be266526",
-      "d5bf4ae501db4bf487ee307503c3c2afa9fb6ed0"
+      "49a1d168c8c37fdceef05ad658423a2dc80326ef"
     ]
   },
-  "base_ref": "c976aa616ab5937c7a192ea9da7731639a12c812",
-  "code_integration_sha": "af84b224b2b5c187bbdd6d270725e9e53f31201e",
+  "base_ref": "1698054d4584b97680f48589ade741b35814d7db",
+  "code_integration_sha": "66f92d1e51aeaea6dc80d5d7f940d4957b852224",
   "contract_version": "1.0",
-  "correlation_id": "eval-url-shortener-9d68a7a31f50",
-  "dispatch_id": "eval-url-shortener-9d68a7a31f50",
+  "correlation_id": "eval-url-shortener-d83b836c5e2e",
+  "dispatch_id": "eval-url-shortener-d83b836c5e2e",
   "engine_status": "engine_completed",
-  "generated_at": "2026-06-18T14:07:16.606867Z",
-  "goal_doc_sha": "9d68a7a31f50",
-  "goal_id": "url-shortener-9d68a7a31f50",
-  "integration_branch": "scraps/goal/url-shortener-9d68a7a31f50",
+  "generated_at": "2026-06-20T14:13:44.846547Z",
+  "goal_doc_sha": "d83b836c5e2e",
+  "goal_id": "url-shortener-d83b836c5e2e",
+  "integration_branch": "scraps/goal/url-shortener-d83b836c5e2e",
   "known_gaps": [],
   "metrics_ref": {
     "path": "metrics.json",
-    "sha256": "df4baad952798a3f8ca89dc3098e91d07f1d873b247ae9605d54915829a15c9f"
+    "sha256": "69b3fefbd11fd02388e51610f30db542a3ec1f81123c97e13e834c1340671499"
   },
   "owner_verify_result": {
     "checks": [
       {
-        "name": "storage-list-links",
-        "status": "green",
-        "tier": "extended"
-      },
-      {
-        "name": "links-dashboard-view",
+        "name": "copy-link-fallback",
         "status": "green",
         "tier": "extended"
       }
     ],
-    "merged_task_count": 2,
+    "merged_task_count": 1,
     "submit_gate_passed": true,
     "tier": "extended"
   },
@@ -66,35 +60,12 @@
           "status": "passed"
         },
         {
-          "command": "pnpm exec vitest run tests/lib/storage.test.ts tests/lib/upstash-storage.test.ts tests/lib/store.test.ts",
+          "command": "pnpm exec vitest run tests/acceptance/copy-link.test.tsx",
           "exit_code": 0,
           "status": "passed"
         },
         {
-          "command": "pnpm exec tsc --noEmit",
-          "exit_code": 0,
-          "status": "passed"
-        }
-      ],
-      "log_ref": "event:task.verification_evidence:storage-list-links",
-      "name": "storage-list-links",
-      "status": "green",
-      "tier": "extended"
-    },
-    {
-      "checks": [
-        {
-          "command": "pnpm install --frozen-lockfile",
-          "exit_code": 0,
-          "status": "passed"
-        },
-        {
-          "command": "pnpm exec vitest run tests/components/LinksTable.test.tsx",
-          "exit_code": 0,
-          "status": "passed"
-        },
-        {
-          "command": "pnpm exec tsc --noEmit",
+          "command": "pnpm exec vitest run tests/components/ShortenForm.test.tsx",
           "exit_code": 0,
           "status": "passed"
         },
@@ -102,10 +73,15 @@
           "command": "pnpm build",
           "exit_code": 0,
           "status": "passed"
+        },
+        {
+          "command": "pnpm run typecheck",
+          "exit_code": 0,
+          "status": "passed"
         }
       ],
-      "log_ref": "event:task.verification_evidence:links-dashboard-view",
-      "name": "links-dashboard-view",
+      "log_ref": "event:task.verification_evidence:copy-link-fallback",
+      "name": "copy-link-fallback",
       "status": "green",
       "tier": "extended"
     }
