@@ -36,7 +36,7 @@ engine: "N/A"
 ---
 
 # Lean Strategy — url-shortener
-Last updated: 2026-06-20 (lean-startup `/lean-strategy-push` rev 5)
+Last updated: 2026-07-27 (lean-startup `/lean-strategy-push` rev 6)
 Source: scraps Notion lean-validation (Build Cycles · Projects · objective-cycle sequencing)
 
 > frontmatter = allocator 기계 입력(tight). 아래 본문 = 사람·coder 열람용(서사+진행). allocator는 frontmatter만 소비.
@@ -63,6 +63,8 @@ Source: scraps Notion lean-validation (Build Cycles · Projects · objective-cyc
 | BC-38 | eval-url-shortener-a4f28b475792 | verdict | achieved | pass | — |
 
 > ⚠️ **SCR-609/610 prereq 갭**: gateway의 `status=shipped` 마커 (PR 머지 확인) 미구현 → met 집합 공식 비어 있음. lean 전략 재량으로 시퀀싱 중 — yonggony(lean Notion 스키마 소유자) prereq ③ 해결 시 자동 수렴 가능.
+>
+> ⚠️ 이번 push는 Build Cycles DB `product` relation 필터 조회가 0건 반환(dawn 무인 fail-soft — 조사 생략)해 신규 BC 갱신을 확인하지 못했다. 위 표는 직전 rev(5)의 값을 그대로 보존한 것으로, D3-history 이후 실제 진행이 있었다면 다음 push에서 반영 필요.
 
 ## 최근 진행·열린 액션
 
@@ -97,4 +99,4 @@ Source: scraps Notion lean-validation (Build Cycles · Projects · objective-cyc
 - 배포 런북: https://app.notion.com/p/url-shortener-Vercel-2026-06-15-380ff5099be281969b38d14b302dd765
 
 ---
-<!-- LEAN-STRATEGY-META rev=5 lean_startup_commit=20260620 generated_at=2026-06-20T00:00:00Z source_pages=4 -->
+<!-- LEAN-STRATEGY-META rev=6 lean_startup_commit=f1f0098 generated_at=2026-07-27T19:54:25Z source_pages=1 -->
