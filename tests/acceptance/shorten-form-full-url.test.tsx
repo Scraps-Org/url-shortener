@@ -1,71 +1,99 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import ShortenForm from '../../src/components/ShortenForm'
 
-describe('ShortenForm — full URL display (A-1, A-2)', () => {
-  const ORIGIN = 'https://short.example.com'
-  const CODE = 'abc123'
-  const FULL_URL = `${ORIGIN}/${CODE}`
+const ORIGIN = 'https://short.example'
+const CODE = 'abc123'
+const FULL_URL = `${ORIGIN}/${CODE}`
 
-  beforeEach(() => {
-    Object.defineProperty(window, 'location', {
-      value: { origin: ORIGIN },
-      writable: true,
-      configurable: true,
-    })
-    vi.stubGlobal('fetch', vi.fn<[RequestInfo | URL, RequestInit?], Promise<Response>>().mockResolvedValue(
-      new Response(JSON.stringify({ code: CODE }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      })
-    ))
-    const clipboardMock = { writeText: vi.fn<[string], Promise<void>>().mockResolvedValue(undefined) }
-    Object.defineProperty(navigator, 'clipboard', {
-      value: clipboardMock,
-      writable: true,
-      configurable: true,
-    })
+beforeEach(() => {
+  Object.defineProperty(window, 'location', {
+    value: { origin: ORIGIN },
+    writable: true,
   })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
+  vi.stubGlobal('fetch', vi.fn<[RequestInfo | URL, RequestInit?], Promise<Response>>(() =>
+    Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ code: CODE }),
+    } as Response)
+  ))
+  const writeText = vi.fn<[string], Promise<void>>(() => Promise.resolve())
+  Object.defineProperty(navigator, 'clipboard', {
+    value: { writeText },
+    writable: true,
+    configurable: true,
   })
+})
 
-  async function submitForm() {
+describe('A-1: ShortenForm displays full URL after successful shorten', () => {
+  it('shows origin/code as the result, not the bare code alone', async () => {
     render(<ShortenForm />)
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'https://example.com/long-path' } })
-    fireEvent.click(screen.getByRole('button', { name: /shorten/i }))
-    await waitFor(() => {
-      expect(screen.getByRole('link')).toBeDefined()
+
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'https://example.com/long' } })
+
+    const button = screen.getByRole('button', { name: /short|단축|shorten/i })
+    await act(async () => {
+      fireEvent.click(button)
     })
-  }
 
-  it('A-1: displays full URL (origin + "/" + code), not code alone', async () => {
-    await submitForm()
+    await waitFor(() => {
+      expect(screen.getByText(FULL_URL)).toBeInTheDocument()
+    })
 
-    expect(screen.getByText(FULL_URL)).toBeDefined()
+    // The bare code alone must NOT be the only result shown
+    const allText = screen.getAllByText((_content, element) => {
+      if (!element) return false
+      const text = element.textContent ?? ''
+      return text.trim() === CODE
+    })
+    // If bare code appears, full URL must also appear (full URL contains code)
+    // The key assertion: full URL is visible
+    expect(screen.getByText(FULL_URL)).toBeInTheDocument()
+    // And it must not be displayed as code-only (a node whose ENTIRE text is just the bare code)
+    allText.forEach((el) => {
+      // Any element showing only the bare code should not be the primary result container
+      // The result must include the origin prefix
+      expect(el.textContent).not.toBe(CODE)
+    })
+  })
+})
 
-    const allText = document.body.textContent ?? ''
-    const codeOnlyPattern = new RegExp(`(?<!/)\\b${CODE}\\b(?!/)`, 'g')
-    const codeAloneMatches = allText.match(codeOnlyPattern) ?? []
-    expect(
-      codeAloneMatches.every((match) => !allText.includes(match)),
-      `Code "${CODE}" should not appear standalone — found: ${codeAloneMatches.join(', ')}`
-    ).toBe(true)
+describe('A-2: result area has a clickable <a> link and a copy button', () => {
+  it('renders an <a> with href=fullUrl', async () => {
+    render(<ShortenForm />)
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'https://example.com/long' },
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /short|단축|shorten/i }))
+    })
+
+    const link = await waitFor(() => screen.getByRole('link'))
+    expect(link).toHaveAttribute('href', FULL_URL)
   })
 
-  it('A-2: result has <a href=fullUrl> and a copy button calling clipboard.writeText(fullUrl)', async () => {
-    await submitForm()
+  it('renders a copy button that calls navigator.clipboard.writeText with the full URL', async () => {
+    render(<ShortenForm />)
 
-    const link = screen.getByRole('link')
-    expect(link.getAttribute('href')).toBe(FULL_URL)
-
-    const copyButton = screen.getByRole('button', { name: /복사|copy/i })
-    expect(copyButton).toBeDefined()
-
-    fireEvent.click(copyButton)
-    await waitFor(() => {
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(FULL_URL)
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'https://example.com/long' },
     })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /short|단축|shorten/i }))
+    })
+
+    const copyButton = await waitFor(() =>
+      screen.getByRole('button', { name: /복사|copy/i })
+    )
+
+    await act(async () => {
+      fireEvent.click(copyButton)
+    })
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(FULL_URL)
   })
 })
